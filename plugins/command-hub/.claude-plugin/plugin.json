@@ -1,0 +1,7 @@
+{
+  "name": "command-hub",
+  "version": "0.1.0",
+  "description": "Discover slash commands: essentials explained in plain language, searchable list of everything installed, a form to create your own, and tips when a command fits what you just typed.",
+  "author": { "name": "claude-mods contributors" },
+  "types": "./types/index.d.ts"
+}

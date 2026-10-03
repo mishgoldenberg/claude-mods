@@ -1,0 +1,27 @@
+{
+  "name": "notify",
+  "version": "0.1.0",
+  "description": "Notification inbox + native OS notifications when a long turn ends, a subagent or background task finishes, or Claude is stuck waiting for your approval.",
+  "author": { "name": "claude-mods contributors" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "minSeconds": {
+      "type": "number",
+      "title": "Notify after (seconds)",
+      "description": "Only notify for turns that ran at least this long.",
+      "default": 30
+    },
+    "osNotify": {
+      "type": "boolean",
+      "title": "Native OS notifications",
+      "description": "Also send a desktop notification (Windows balloon, macOS Notification Center, Linux notify-send).",
+      "default": true
+    },
+    "approvalWaitSeconds": {
+      "type": "number",
+      "title": "Ping when an approval waits (seconds)",
+      "description": "Notify when a tool call has waited this long for your approval (-1 turns it off).",
+      "default": 15
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "prompt-coach",
+  "version": "0.1.0",
+  "description": "Before a vague prompt is sent, suggests a sharper rewrite; you choose: send improved, send yours, or edit the suggestion. Never rewrites silently.",
+  "author": { "name": "claude-mods contributors" },
+  "userConfig": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "description": "Review prompts before sending (toggle any time with /coach).",
+      "default": true
+    },
+    "model": {
+      "type": "string",
+      "title": "Reviewer model",
+      "description": "A small fast model keeps the delay to about a second.",
+      "default": "claude-haiku-4-5-20251001"
+    },
+    "minChars": {
+      "type": "number",
+      "title": "Skip prompts shorter than",
+      "description": "Very short replies (yes, continue, ok…) are never reviewed.",
+      "default": 8
+    }
+  }
+}

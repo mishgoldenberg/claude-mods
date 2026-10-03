@@ -1,0 +1,20 @@
+{
+  "name": "loop-breaker",
+  "version": "0.1.0",
+  "description": "Notices when Claude is going in circles (the same command failing again and again, one file patched over and over) and tells Claude to step back and rethink, and tells you too.",
+  "author": { "name": "claude-mods contributors" },
+  "userConfig": {
+    "failLimit": {
+      "type": "number",
+      "title": "Same failing command limit",
+      "description": "Nudge after the same shell command fails this many times in a row.",
+      "default": 3
+    },
+    "editLimit": {
+      "type": "number",
+      "title": "Edits to one file per turn",
+      "description": "Nudge after one file is edited this many times in a single turn.",
+      "default": 6
+    }
+  }
+}

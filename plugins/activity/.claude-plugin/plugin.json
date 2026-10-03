@@ -1,0 +1,15 @@
+{
+  "name": "activity",
+  "version": "0.1.0",
+  "description": "Live panel of what Claude is doing: running tools with real commands and timers, what is waiting for your approval, subagents, and its current todo plan.",
+  "author": { "name": "claude-mods contributors" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "autoOpen": {
+      "type": "boolean",
+      "title": "Open on session start",
+      "description": "Dock the activity panel automatically when there is room (wide terminals and the desktop app).",
+      "default": false
+    }
+  }
+}

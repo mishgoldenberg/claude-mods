@@ -1,0 +1,12 @@
+{
+  "name": "claude-mods",
+  "private": true,
+  "description": "Community mods (function-hook plugins) for Claude Code",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "node tests/guardrails-rules.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

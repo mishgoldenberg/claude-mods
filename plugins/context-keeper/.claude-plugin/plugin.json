@@ -1,0 +1,23 @@
+{
+  "name": "context-keeper",
+  "version": "0.1.0",
+  "description": "Live context-window panel: what fills it, checkpoints before you compact or clear, and nudges before you hit the wall.",
+  "author": {
+    "name": "claude-mods contributors"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "warnAt": {
+      "type": "number",
+      "title": "Warn at context %",
+      "description": "Toast a tip when the context window passes this percentage.",
+      "default": 70
+    },
+    "checkpointAt": {
+      "type": "number",
+      "title": "Auto-checkpoint at context %",
+      "description": "Write a handoff note automatically when the context passes this percentage (0 turns it off).",
+      "default": 85
+    }
+  }
+}

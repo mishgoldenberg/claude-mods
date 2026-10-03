@@ -1,0 +1,15 @@
+{
+  "name": "usage-meter",
+  "version": "0.1.0",
+  "description": "Plan-limit bars with burn rate and time-to-empty, session cost, cache hit ratio and tokens-per-turn sparkline.",
+  "author": { "name": "claude-mods contributors" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "warnAt": {
+      "type": "number",
+      "title": "Warn at limit %",
+      "description": "Toast when a plan rate-limit window passes this percentage (a second toast always fires at 95%).",
+      "default": 80
+    }
+  }
+}
