@@ -259,7 +259,7 @@ export const register: Register = on => {
 
     const block: GuardBlock = { at: await $.clock.now(), rule: broken.rule, tool, what: broken.what }
     await update($, blocks, list => [block, ...list].slice(0, 50))
-    $.ui.toast(`🛡 Blocked ${tool}: ${broken.rule}`)
+    $.ui.toast(`Blocked ${tool}: ${broken.rule}`)
 
     return {
       deny: `Blocked by the user's guardrails (rule: "${broken.rule}", matched: ${broken.what.slice(0, 120)}). Do not try to work around this rule with a different command; ask the user if you believe this action is needed.`,

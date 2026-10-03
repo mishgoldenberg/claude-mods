@@ -101,7 +101,7 @@ export const register: Register = (on, options) => {
 
     if (choice === SEND_NEW) {
       // The chat keeps showing what you typed, so say plainly what was sent instead (not sent to the model).
-      $.ui.log(`✍️ prompt-coach sent the improved version:\n${verdict.rewrite}`)
+      $.ui.log(`prompt-coach sent the improved version:\n${verdict.rewrite}`)
 
       return next({ ...e, text: verdict.rewrite })
     }
@@ -114,7 +114,7 @@ export const register: Register = (on, options) => {
     }
 
     // Free text typed under "Other": that is what they want to send.
-    $.ui.log(`✍️ prompt-coach sent your edited version:\n${choice}`)
+    $.ui.log(`prompt-coach sent your edited version:\n${choice}`)
 
     return next({ ...e, text: choice })
   })
