@@ -2,3 +2,4 @@ node_modules/
 .claude/types/
 .claude/checkpoints/
 .claude/settings.local.json
+launch/
