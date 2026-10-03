@@ -10,7 +10,7 @@
 [![Mods](https://img.shields.io/badge/Mods-11-8A63D2?style=for-the-badge)](#-features)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-<!-- demo GIF goes here: ![claude-mods demo](docs/demo.gif) -->
+<img src="docs/demo-guardrails.gif" alt="guardrails blocking an agent's oc delete all --all before it runs" width="900">
 
 </div>
 
