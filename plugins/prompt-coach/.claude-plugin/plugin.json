@@ -2,7 +2,7 @@
   "name": "prompt-coach",
   "version": "0.1.0",
   "description": "Before a vague prompt is sent, suggests a sharper rewrite; you choose: send improved, send yours, or edit the suggestion. Never rewrites silently.",
-  "author": { "name": "claude-mods contributors" },
+  "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "userConfig": {
     "enabled": {
       "type": "boolean",

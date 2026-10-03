@@ -1,0 +1,30 @@
+name: 🐛 Bug
+description: A mod misbehaves or fails to load
+labels: [bug]
+body:
+  - type: dropdown
+    id: mod
+    attributes:
+      label: Which mod?
+      options: [quickbar, context-keeper, usage-meter, notify, activity, guardrails, prompt-coach, toolbox, command-hub, changes, loop-breaker]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where?
+      options: [Terminal, Desktop app, VS Code, Other]
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include any dim "<mod>: … refused" line from the transcript, or the output of `claude --debug`.
+    validations:
+      required: true

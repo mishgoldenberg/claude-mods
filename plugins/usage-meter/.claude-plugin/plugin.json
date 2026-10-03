@@ -2,7 +2,7 @@
   "name": "usage-meter",
   "version": "0.1.0",
   "description": "Plan-limit bars with burn rate and time-to-empty, session cost, cache hit ratio and tokens-per-turn sparkline.",
-  "author": { "name": "claude-mods contributors" },
+  "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "types": "./types/index.d.ts",
   "userConfig": {
     "warnAt": {

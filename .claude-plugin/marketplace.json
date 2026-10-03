@@ -1,6 +1,6 @@
 {
   "name": "claude-mods",
-  "owner": { "name": "claude-mods contributors" },
+  "owner": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "metadata": {
     "description": "Panels, guardrails and quality-of-life mods for Claude Code, built on function hooks.",
     "version": "0.1.0"

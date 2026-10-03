@@ -1,0 +1,23 @@
+name: 💡 Mod request
+description: An annoyance in Claude Code that a mod could fix
+labels: [mod-request]
+body:
+  - type: textarea
+    id: pain
+    attributes:
+      label: What annoys you?
+      description: The moment in your day with Claude Code where this hurts.
+      placeholder: I approve a command, tab away, and come back 10 minutes later to find it was waiting on me again…
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would the mod do?
+      description: A panel, a toast, a block, a command… rough is fine.
+  - type: checkboxes
+    id: build
+    attributes:
+      label: Want to build it?
+      options:
+        - label: I'd like to try building this myself (we'll help)

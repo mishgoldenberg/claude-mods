@@ -17,7 +17,7 @@ You are Claude Code and the user asked you to install mods from this repository.
    - **loop-breaker**: stops Claude going in circles
 3. Add the marketplace (once):
    ```
-   claude plugin marketplace add OWNER/claude-mods
+   claude plugin marketplace add mishgoldenberg/claude-mods
    ```
 4. Install each chosen mod:
    ```

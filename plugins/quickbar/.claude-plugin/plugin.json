@@ -2,6 +2,6 @@
   "name": "quickbar",
   "version": "0.1.0",
   "description": "A one-line launcher above the prompt: live context %, and one-click buttons for every claude-mods panel you have installed.",
-  "author": { "name": "claude-mods contributors" },
+  "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "types": "./types/index.d.ts"
 }

@@ -2,6 +2,6 @@
   "name": "changes",
   "version": "0.1.0",
   "description": "Every file Claude created or edited this session, with +/- line counts from git and one-click 'why?', summary and self-review.",
-  "author": { "name": "claude-mods contributors" },
+  "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "types": "./types/index.d.ts"
 }

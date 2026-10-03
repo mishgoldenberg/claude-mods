@@ -2,6 +2,6 @@
   "name": "toolbox",
   "version": "0.1.0",
   "description": "Every tool Claude can use (built-in and MCP) in plain language, how often each was used, and suggestions tailored to the project you are in.",
-  "author": { "name": "claude-mods contributors" },
+  "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "types": "./types/index.d.ts"
 }

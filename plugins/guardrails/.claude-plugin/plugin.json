@@ -2,6 +2,6 @@
   "name": "guardrails",
   "version": "0.1.0",
   "description": "Clickable safety rules with presets: block rm -rf, force-push, destructive git, secret files, sudo, installs, network; lock Claude to the project folder or read-only; add your own block patterns.",
-  "author": { "name": "claude-mods contributors" },
+  "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "types": "./types/index.d.ts"
 }

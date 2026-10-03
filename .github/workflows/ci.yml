@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Claude Code (for its plugin validator and API types)
+        run: npm install -g @anthropic-ai/claude-code@latest
+
+      - name: Validate marketplace and every mod
+        run: |
+          claude plugin validate .
+          for mod in plugins/*/; do
+            echo "::group::$mod"
+            claude plugin validate "$mod"
+            echo "::endgroup::"
+          done
+
+      - name: Guardrails rule tests
+        run: npm test

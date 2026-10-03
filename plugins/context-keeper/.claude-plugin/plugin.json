@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "Live context-window panel: what fills it, checkpoints before you compact or clear, and nudges before you hit the wall.",
   "author": {
-    "name": "claude-mods contributors"
+    "name": "Michael Goldenberg",
+    "url": "https://github.com/mishgoldenberg"
   },
   "types": "./types/index.d.ts",
   "userConfig": {
