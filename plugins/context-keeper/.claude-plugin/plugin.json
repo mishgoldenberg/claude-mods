@@ -1,6 +1,6 @@
 {
   "name": "context-keeper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Live context-window panel: what fills it, checkpoints before you compact or clear, and nudges before you hit the wall.",
   "author": {
     "name": "Michael Goldenberg",

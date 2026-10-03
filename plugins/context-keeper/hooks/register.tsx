@@ -23,8 +23,10 @@ const TIPS: Record<string, string> = {
   'Custom agents': 'Remove agent definitions you never call.',
   Skills: 'Skills are cheap until loaded; uninstall ones you never use.',
   Messages: 'Most of the window is conversation: checkpoint, then /compact or /clear.',
-  'System tools': 'Built-in tool schemas are fixed cost; nothing to do here.',
 }
+
+/** Rows of the breakdown that are room, not content. */
+const NOT_CONTENT = /^(free space|autocompact buffer)$/i
 
 const bar = (percent: number, width: number) => {
   const filled = Math.max(0, Math.min(width, Math.round((percent / 100) * width)))
@@ -32,7 +34,8 @@ const bar = (percent: number, width: number) => {
   return '█'.repeat(filled) + '░'.repeat(width - filled)
 }
 
-const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n))
+const k = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 
 const stamp = (ms: number) => new Date(ms).toISOString().replace(/[:.]/g, '-').slice(0, 19)
 
@@ -47,7 +50,7 @@ async function refresh($: EngineInterface): Promise<ContextSnapshot | null> {
     tokens: ctx.tokens ?? breakdown?.totalTokens ?? 0,
     window: ctx.window,
     categories: (breakdown?.categories ?? [])
-      .filter(c => c.tokens > 0 && !c.isDeferred)
+      .filter(c => c.tokens > 0 && !c.isDeferred && !NOT_CONTENT.test(c.name))
       .map(c => ({ name: c.name, tokens: c.tokens }))
       .sort((a, b) => b.tokens - a.tokens),
     memoryFiles: (breakdown?.memoryFiles ?? [])
@@ -69,12 +72,26 @@ async function remember($: EngineInterface, cp: Checkpoint) {
 
 /** Asks the model (over the cached transcript) for a handoff note and saves it. */
 async function writeHandoff($: EngineInterface, why: string) {
-  if ((await read($, busy)) !== null) return
+  if ((await read($, busy)) !== null) {
+    $.ui.toast('Already writing a checkpoint, one moment…')
+    return
+  }
+  if ((await $.session.turns()) === 0) {
+    $.ui.toast('Nothing to checkpoint yet: a checkpoint summarizes the conversation, and this session has none. Chat first, then try again.', { timeoutMs: 8000 })
+    return
+  }
   await update($, busy, () => 'Writing handoff note…')
+  $.ui.toast('Writing checkpoint…')
   try {
     const result = await $.model.fork({ prompt: HANDOFF_PROMPT })
     if (!result.isAnswered) {
-      $.ui.toast(`Checkpoint skipped: ${result.reason}`)
+      const why: Record<string, string> = {
+        'nothing-to-fork': 'there is no conversation to summarize yet (right after /clear, too)',
+        aborted: 'it was interrupted',
+        'empty-reply': 'the model returned nothing; try again',
+        'api-error': 'the API returned an error; try again in a moment',
+      }
+      $.ui.toast(`Checkpoint not saved: ${why[result.reason] ?? result.reason}.`, { timeoutMs: 8000 })
       return
     }
     const now = await $.clock.now()
@@ -217,7 +234,7 @@ export const register: Register = (on, options) => {
           <Text bold>What fills it</Text>
           {snap.categories.slice(0, 7).map(c => (
             <Text>
-              {c.name.padEnd(16).slice(0, 16)} {k(c.tokens).padStart(6)} <Text dimColor>{bar((c.tokens / Math.max(1, snap.window)) * 100, 12)}</Text>
+              {c.name.padEnd(20).slice(0, 20)} {k(c.tokens).padStart(6)} <Text dimColor>{bar((c.tokens / Math.max(1, snap.window)) * 100, 12)}</Text>
             </Text>
           ))}
           {snap.memoryFiles.length > 0 && <Text dimColor>Largest memory file: {snap.memoryFiles[0]?.path.split(/[\\/]/).at(-1)} ({k(snap.memoryFiles[0]?.tokens ?? 0)})</Text>}
