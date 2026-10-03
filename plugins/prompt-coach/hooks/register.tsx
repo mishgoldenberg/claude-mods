@@ -5,7 +5,11 @@ Decide if a rewrite would clearly get a better result. Most prompts are fine: on
 vague goal, missing success criteria, ambiguous target ("fix it", "make it better"), several unrelated asks jammed together,
 missing constraints the agent will need (which file/area, what not to touch, how to verify).
 Never change the user's intent, never add requirements they did not imply, keep their voice and language, keep it short.
+Keep the KIND of message: a bug report stays a bug report (don't turn "X doesn't work" into a question like "which file handles X?"),
+a request stays a request, a question stays a question. Never add a new ask, deliverable or question the user didn't make.
+Keep their scoping words ("for now", "just", "only", "first") and any constraints or preferences they stated.
 If the prompt is a reply in an ongoing conversation (yes/no, "go ahead", answering a question), it is fine.
+If the agent's previous message gives the missing context, the prompt is fine as it is.
 Answer ONLY with JSON: {"verdict":"fine"} or {"verdict":"improve","why":"<max 12 words>","rewrite":"<the improved prompt>"}`
 
 type Verdict = { verdict: 'fine' } | { verdict: 'improve'; why: string; rewrite: string }
@@ -95,7 +99,12 @@ export const register: Register = (on, options) => {
       return next(e) // dialog dismissed: send theirs untouched
     }
 
-    if (choice === SEND_NEW) return next({ ...e, text: verdict.rewrite })
+    if (choice === SEND_NEW) {
+      // The chat keeps showing what you typed, so say plainly what was sent instead (not sent to the model).
+      $.ui.log(`✍️ prompt-coach sent the improved version:\n${verdict.rewrite}`)
+
+      return next({ ...e, text: verdict.rewrite })
+    }
     if (choice === SEND_MINE) return next(e)
     if (choice === EDIT) {
       const rewrite = verdict.rewrite
@@ -105,6 +114,8 @@ export const register: Register = (on, options) => {
     }
 
     // Free text typed under "Other": that is what they want to send.
+    $.ui.log(`✍️ prompt-coach sent your edited version:\n${choice}`)
+
     return next({ ...e, text: choice })
   })
 }

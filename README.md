@@ -200,7 +200,7 @@ Guardrails turns on **Safe defaults** the first time it loads. `/guard-preset of
 ## ⚠️ Honest limits
 
 - **Guardrails is a seatbelt, not a sandbox.** Rules are pattern checks on the commands and paths the agent passes to tools. A script that deletes files, or an obfuscated command, gets through. Quoted prose (commit messages, text written to files) is ignored so that *mentioning* `rm -rf` doesn't block you, except when the text is handed to a shell (`bash -c`, `| sh`, `powershell -Command`), which is checked. For hard guarantees use Claude Code's permission rules and sandboxing; use guardrails to catch the honest mistakes.
-- **prompt-coach costs a little.** A reviewed prompt waits about a second for a small model, and uses a few hundred tokens. Short replies are never reviewed. `/coach off` turns it off.
+- **prompt-coach costs a little.** A reviewed prompt waits about a second for a small model, and uses a few hundred tokens. When you send the improved version, the chat still shows what you typed; a dim "✍️ prompt-coach sent the improved version" line below it shows what was actually sent. Short replies are never reviewed. `/coach off` turns it off.
 - **context-keeper's handoff note costs a little.** It asks the model for a summary over the already-cached conversation, so it is mostly cache reads. The pre-compaction archive costs nothing.
 - **Function hooks are early access.** A Claude Code update can break a mod. CI validates every mod against the engine's own validator, and issues are welcome.
 
