@@ -44,6 +44,22 @@ They are deliberately boring about tokens. Nine of the eleven never call a model
 
 ---
 
+## 🎬 See it in action
+
+**context-keeper + usage-meter:** what fills the window, a checkpoint saved to disk, plan limits
+
+<img src="docs/demo-context.gif" alt="context panel, writing a checkpoint, then the usage meter" width="900">
+
+**prompt-coach:** a vague prompt, a suggested rewrite, you choose
+
+<img src="docs/demo-coach.gif" alt="prompt coach suggesting a sharper prompt and sending it" width="900">
+
+**command-hub:** the built-in commands worth knowing, explained
+
+<img src="docs/demo-commands.gif" alt="command hub listing essential slash commands" width="900">
+
+---
+
 ## 🏗️ How it works
 
 ```

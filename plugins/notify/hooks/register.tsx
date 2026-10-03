@@ -119,8 +119,10 @@ export const register: Register = (on, options) => {
   })
 
   on('tool.call', async ($, e, next) => {
-    if (e.agentId === undefined && e.tool === 'AskUserQuestion') {
-      await push($, 'question', 'Claude has a question for you', '', true)
+    if (e.tool === 'AskUserQuestion') {
+      // Only when Claude asks. A plugin's $.ui.ask (prompt-coach's suggestion) also arrives here,
+      // raised by that plugin while you are right at the prompt.
+      if (e.agentId === undefined && next.origin.plugin === 'engine') await push($, 'question', 'Claude has a question for you', '', true)
       return next(e)
     }
 
