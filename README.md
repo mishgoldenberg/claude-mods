@@ -35,12 +35,12 @@ They are deliberately boring about tokens. Nine of the eleven never call a model
 | 📈 **usage-meter** | 5-hour and 7-day plan-limit bars with reset countdown, **burn rate and "full in ~2.3h"**, session cost, cache hit ratio (and why it's low), tokens-per-turn sparkline |
 | 🔔 **notify** | Notification inbox plus **native OS notifications** (Windows, macOS, Linux) when a long turn ends, a subagent or background task finishes, Claude asks you something, or **an approval has been waiting 15s** |
 | 👀 **activity** | What Claude is doing *this second*: thinking, running `$ npm test` for 0m42s, **waiting for YOUR approval**, which subagents run, and its todo plan with progress |
-| 🛡️ **guardrails** | Clickable safety rules with presets (Safe defaults, Locked to project, Read-only review): block `rm -rf`, force-push, destructive git, `.env` and key files, sudo, installs, network; keep Claude inside the project; add your own patterns |
+| 🛡️ **guardrails** | Clickable safety rules with presets (Safe defaults, Locked to project, Read-only review): block `rm -rf`, mass `kubectl`/`oc` deletes, `terraform destroy`, force-push, destructive git, `.env` and key files, sudo, installs, network; keep Claude inside the project; add your own patterns |
 | ✍️ **prompt-coach** | Before a *vague* prompt is sent, a small fast model suggests a sharper one. You pick **Send improved / Send mine / Edit**. Never rewrites silently, never touches "yes" or "continue" |
 | 🧰 **toolbox** | Every tool Claude can use (built-in and MCP, grouped by server) in plain language, how often each was used, and **suggestions for the project you're in** |
 | ⌨️ **command-hub** | The built-in commands you're probably missing, each with *when to use it*; a searchable list of everything installed; a form to create your own slash command; tips when your prompt matches one ("undo that" → `/rewind`) |
 | 📝 **changes** | Every file Claude created or edited this session with `+/-` counts from git, plus one-click *why?*, *summarize all* and *self-review* |
-| 🔁 **loop-breaker** | Notices Claude going in circles (the same command failing 3×, one file patched 6× in a turn), tells you, and tells Claude to stop and rethink |
+| 🔁 **loop-breaker** | Notices Claude going in circles (the same command failing 3×, the same code rewritten 3× in a turn), tells you, and tells Claude to stop and rethink |
 
 ---
 
@@ -175,13 +175,14 @@ Options appear in `/config` once a mod is installed, or go in `~/.claude/setting
 | prompt-coach | `model` | `claude-haiku-4-5` | Reviewer model; small keeps the delay near a second |
 | prompt-coach | `minChars` | `8` | Never review prompts shorter than this |
 | loop-breaker | `failLimit` | `3` | Same failing command this many times in a row |
-| loop-breaker | `editLimit` | `6` | Edits to one file in a single turn |
+| loop-breaker | `editLimit` | `3` | Times the same code is rewritten in one turn (separate edits to different parts of a file never count) |
 
 ### guardrails rules
 
 | Rule | Blocks | In preset |
 |---|---|---|
 | `no-rm-rf` | `rm -rf`, `rm -fr`, `Remove-Item -Recurse -Force`, `rmdir /s` | Safe · Locked |
+| `no-mass-delete` | `kubectl`/`oc delete --all` or `-A`, `delete namespace`/`project`, `helm uninstall`, `terraform destroy` | Safe · Locked · Review |
 | `no-force-push` | `git push --force` / `-f` (`--force-with-lease` allowed) | Safe · Locked |
 | `no-history-rewrite` | `git reset --hard`, `git clean -f`, `git checkout -- .`, `branch -D`, `stash drop` | Safe · Locked |
 | `protect-secrets` | reading or writing `.env*`, `*.pem`, `*.key`, `id_rsa`, credentials files | Safe · Locked · Review |
@@ -198,7 +199,7 @@ Guardrails turns on **Safe defaults** the first time it loads. `/guard-preset of
 
 ## ⚠️ Honest limits
 
-- **Guardrails is a seatbelt, not a sandbox.** Rules are pattern checks on the commands and paths the agent passes to tools. A script that deletes files, or an obfuscated command, gets through. For hard guarantees use Claude Code's permission rules and sandboxing; use guardrails to catch the honest mistakes.
+- **Guardrails is a seatbelt, not a sandbox.** Rules are pattern checks on the commands and paths the agent passes to tools. A script that deletes files, or an obfuscated command, gets through. Quoted prose (commit messages, text written to files) is ignored so that *mentioning* `rm -rf` doesn't block you, except when the text is handed to a shell (`bash -c`, `| sh`, `powershell -Command`), which is checked. For hard guarantees use Claude Code's permission rules and sandboxing; use guardrails to catch the honest mistakes.
 - **prompt-coach costs a little.** A reviewed prompt waits about a second for a small model, and uses a few hundred tokens. Short replies are never reviewed. `/coach off` turns it off.
 - **context-keeper's handoff note costs a little.** It asks the model for a summary over the already-cached conversation, so it is mostly cache reads. The pre-compaction archive costs nothing.
 - **Function hooks are early access.** A Claude Code update can break a mod. CI validates every mod against the engine's own validator, and issues are welcome.

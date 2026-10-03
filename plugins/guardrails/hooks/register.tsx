@@ -23,8 +23,27 @@ const FILE_TOOLS = new Set(['Read', 'Write', 'Edit', 'NotebookEdit', 'Grep', 'Gl
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit'])
 
 const cmd = (c: Call) => (SHELLS.has(c.tool) && typeof c.input.command === 'string' ? c.input.command : '')
+
+/** The command hands quoted text or a heredoc to a shell that will run it as code. */
+const RUNS_INLINE_SHELL = /(^|[;&|(]\s*)(bash|sh|zsh|dash|eval|source)\b|\b(powershell|pwsh)(\.exe)?\b.*\s-(c|Command|EncodedCommand)\b|\bcmd(\.exe)?\s+\/[ck]\b|\|\s*(bash|sh|zsh|iex|Invoke-Expression)\b/i
+
+/**
+ * The command as a shell would act on it: quoted prose (a commit message, a
+ * `node -e "..."` string, text written to a file) and heredoc bodies are blanked,
+ * so mentioning `rm -rf` is not running it. Short quoted tokens (".env",
+ * "my dir") stay, and nothing is blanked when the text is fed to a shell as code.
+ */
+export function shellText(command: string) {
+  if (RUNS_INLINE_SHELL.test(command)) return command
+  let text = command.replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(\n|$)/g, '<<HEREDOC\n')
+
+  text = text.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, quoted => (/\s/.test(quoted) ? '""' : quoted))
+
+  return text
+}
+
 const shellHit = (c: Call, re: RegExp) => {
-  const m = re.exec(cmd(c))
+  const m = re.exec(shellText(cmd(c)))
 
   return m ? m[0].trim() : undefined
 }
@@ -64,6 +83,16 @@ export const RULES: Rule[] = [
     title: 'Block recursive force-delete',
     explain: 'rm -rf, rm -fr, Remove-Item -Recurse -Force, rmdir /s, del /s',
     test: c => shellHit(c, /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|-r\s+-f|-f\s+-r|--recursive\s+--force|--force\s+--recursive)\b.*|Remove-Item\b(?=.*-Recurse)(?=.*-Force).*|\brmdir\s+\/s\b.*|\bdel\s+\/s\b.*/i),
+  },
+  {
+    id: 'no-mass-delete',
+    title: 'Block mass deletes in clusters & infra',
+    explain: 'kubectl/oc delete --all or -A, delete namespace/project, helm uninstall, terraform destroy',
+    test: c =>
+      shellHit(
+        c,
+        /\b(kubectl|oc)\b[^;&|]*\sdelete\b[^;&|]*(\s--all\b|\s-A\b|\s--all-namespaces\b)[^;&|]*|\b(kubectl|oc)\b[^;&|]*\sdelete\s+(ns|namespaces?|projects?)\b[^;&|]*|\boc\s+delete-project\b.*|\bhelm\s+(uninstall|delete|del|un)\b[^;&|]*|\bterraform\s+(destroy\b|apply\b[^;&|]*\s-destroy\b)[^;&|]*|\bterragrunt\s+(destroy|run-all\s+destroy)\b[^;&|]*/i,
+      ),
   },
   {
     id: 'no-force-push',
@@ -143,13 +172,30 @@ export const RULES: Rule[] = [
 ]
 
 const PRESETS: { id: string; title: string; rules: string[] }[] = [
-  { id: 'safe', title: 'Safe defaults', rules: ['no-rm-rf', 'no-force-push', 'no-history-rewrite', 'protect-secrets', 'no-sudo'] },
-  { id: 'locked', title: 'Locked to project', rules: ['no-rm-rf', 'no-force-push', 'no-history-rewrite', 'protect-secrets', 'no-sudo', 'jail-all'] },
-  { id: 'review', title: 'Read-only review', rules: ['protect-secrets', 'no-sudo', 'no-installs', 'read-only'] },
+  { id: 'safe', title: 'Safe defaults', rules: ['no-rm-rf', 'no-mass-delete', 'no-force-push', 'no-history-rewrite', 'protect-secrets', 'no-sudo'] },
+  { id: 'locked', title: 'Locked to project', rules: ['no-rm-rf', 'no-mass-delete', 'no-force-push', 'no-history-rewrite', 'protect-secrets', 'no-sudo', 'jail-all'] },
+  { id: 'review', title: 'Read-only review', rules: ['no-mass-delete', 'protect-secrets', 'no-sudo', 'no-installs', 'read-only'] },
   { id: 'off', title: 'All off', rules: [] },
 ]
 
-async function save($: EngineInterface, change: (c: GuardConfig) => GuardConfig) {
+/**
+ * A saved config from an older version: rules added since then switch on when
+ * the person is on a preset that now includes them; hand-picked sets stay as they are.
+ */
+export function upgrade(cfg: GuardConfig): GuardConfig {
+  const known = new Set(cfg.known ?? ['no-rm-rf', 'no-force-push', 'no-history-rewrite', 'protect-secrets', 'no-sudo', 'no-installs', 'no-network', 'jail-writes', 'jail-all', 'read-only'])
+  const added = RULES.map(r => r.id).filter(id => !known.has(id))
+  const mine = new Set(cfg.enabled)
+  const preset = PRESETS.find(p => {
+    const before = p.rules.filter(id => !added.includes(id))
+
+    return before.length === mine.size && before.every(id => mine.has(id))
+  })
+
+  return { ...cfg, enabled: preset ? [...preset.rules] : cfg.enabled, known: RULES.map(r => r.id) }
+}
+
+async function save($: EngineInterface,change: (c: GuardConfig) => GuardConfig) {
   const next = await update($, config, change)
   await $.store.set(STORE_KEY, next)
   const count = next.enabled.length + next.custom.length
@@ -161,7 +207,7 @@ export const register: Register = on => {
     await $.command.register({ name: 'guard', description: 'Open guardrails: toggle safety rules and presets' })
     await $.command.register({ name: 'guard-preset', description: 'Apply a guardrail preset', argumentHint: 'safe | locked | review | off' })
     const stored = (await $.store.get(STORE_KEY)) as GuardConfig | undefined
-    await save($, () => stored ?? { enabled: PRESETS[0]?.rules ?? [], custom: [] })
+    await save($, () => (stored === undefined ? { enabled: PRESETS[0]?.rules ?? [], custom: [], known: RULES.map(r => r.id) } : upgrade(stored)))
 
     return next(e)
   })

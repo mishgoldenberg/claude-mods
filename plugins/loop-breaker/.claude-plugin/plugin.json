@@ -1,8 +1,11 @@
 {
   "name": "loop-breaker",
   "version": "0.1.0",
-  "description": "Notices when Claude is going in circles (the same command failing again and again, one file patched over and over) and tells Claude to step back and rethink, and tells you too.",
-  "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
+  "description": "Notices when Claude is going in circles (the same command failing again and again, the same code rewritten over and over) and tells Claude to step back and rethink, and tells you too.",
+  "author": {
+    "name": "Michael Goldenberg",
+    "url": "https://github.com/mishgoldenberg"
+  },
   "userConfig": {
     "failLimit": {
       "type": "number",
@@ -12,9 +15,9 @@
     },
     "editLimit": {
       "type": "number",
-      "title": "Edits to one file per turn",
-      "description": "Nudge after one file is edited this many times in a single turn.",
-      "default": 6
+      "title": "Reworks of the same code per turn",
+      "description": "Nudge after Claude rewrites code it already changed this turn this many times (separate edits to different parts of a file never count).",
+      "default": 3
     }
   }
 }
