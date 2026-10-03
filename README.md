@@ -46,6 +46,10 @@ They are deliberately boring about tokens. Nine of the eleven never call a model
 
 ## 🎬 See it in action
 
+**activity:** what Claude is running right now, and the moment it's waiting on *you*
+
+<img src="docs/demo-activity.gif" alt="activity panel showing thinking, waiting for approval, then completed tool calls" width="900">
+
 **context-keeper + usage-meter:** what fills the window, a checkpoint saved to disk, plan limits
 
 <img src="docs/demo-context.gif" alt="context panel, writing a checkpoint, then the usage meter" width="900">
