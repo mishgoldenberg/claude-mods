@@ -9,8 +9,33 @@ Keep the KIND of message: a bug report stays a bug report (don't turn "X doesn't
 a request stays a request, a question stays a question. Never add a new ask, deliverable or question the user didn't make.
 Keep their scoping words ("for now", "just", "only", "first") and any constraints or preferences they stated.
 If the prompt is a reply in an ongoing conversation (yes/no, "go ahead", answering a question), it is fine.
-If the agent's previous message gives the missing context, the prompt is fine as it is.
+You get the recent conversation. Resolve "it", "this", "the other one", "same for X" from it. If the conversation
+makes the prompt clear, it is fine as it is: a prompt that only looks vague out of context is NOT a problem.
+When you do improve, make the SMALLEST edit: keep the user's own words and order, and only add what is missing
+(the file or area, a success criterion, a constraint). The rewrite must read like their prompt with a few words
+added, never like a new prompt.
 Answer ONLY with JSON: {"verdict":"fine"} or {"verdict":"improve","why":"<max 12 words>","rewrite":"<the improved prompt>"}`
+
+/** The last few turns, oldest first, trimmed so the reviewer sees what the user is referring to. */
+function recentTurns(messages: { role: string; text: string }[], max = 6, perMessage = 700): string {
+  return messages
+    .filter(m => m.text.trim() !== '')
+    .slice(-max)
+    .map(m => `${m.role === 'user' ? 'User' : 'Agent'}: ${m.text.length > perMessage ? `…${m.text.slice(-perMessage)}` : m.text}`)
+    .join('\n\n')
+}
+
+/** Share of the prompt's meaningful words the rewrite kept; a low share means it was replaced, not improved. */
+function keptShare(prompt: string, rewrite: string): number {
+  const words = (s: string) => s.toLowerCase().match(/[\p{L}\p{N}_./-]{4,}/gu) ?? []
+  const original = new Set(words(prompt))
+  if (original.size < 3) return 1
+  const kept = new Set(words(rewrite))
+  let hits = 0
+  for (const w of original) if (kept.has(w)) hits++
+
+  return hits / original.size
+}
 
 type Verdict = { verdict: 'fine' } | { verdict: 'improve'; why: string; rewrite: string }
 
@@ -33,7 +58,7 @@ function parse(text: string): Verdict | undefined {
 
 async function review($: EngineInterface, prompt: string, model: string): Promise<Verdict | undefined> {
   const messages = await $.session.messages().catch(() => [])
-  const lastReply = Array.isArray(messages) ? messages.filter(m => m.role === 'assistant').at(-1)?.text ?? '' : ''
+  const conversation = Array.isArray(messages) ? recentTurns(messages) : ''
   const project = (await $.session.root()).split(/[\\/]/).at(-1) ?? ''
   const stop = new AbortController()
   const timer = $.clock.after(15000, () => stop.abort())
@@ -42,13 +67,17 @@ async function review($: EngineInterface, prompt: string, model: string): Promis
       model,
       system: SYSTEM,
       maxTokens: 700,
-      prompt: `Project folder: ${project}\nAgent's previous message (may be empty):\n"""${lastReply.slice(-1500)}"""\n\nUser's new prompt:\n"""${prompt}"""`,
+      prompt: `Project folder: ${project}\nRecent conversation, oldest first (may be empty):\n"""${conversation}"""\n\nUser's new prompt:\n"""${prompt}"""`,
     },
     { signal: stop.signal },
   )
   timer.cancel()
 
-  return result.isAnswered ? parse(result.text) : undefined
+  const verdict = result.isAnswered ? parse(result.text) : undefined
+  // A rewrite that drops most of what they wrote is a different prompt, not a better one: stay quiet.
+  if (verdict?.verdict === 'improve' && keptShare(prompt, verdict.rewrite) < 0.5) return { verdict: 'fine' }
+
+  return verdict
 }
 
 export const register: Register = (on, options) => {
