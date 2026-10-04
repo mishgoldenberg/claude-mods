@@ -50,6 +50,8 @@ async function osNotify($: EngineInterface, title: string, body: string) {
 }
 
 let useOs = true
+// In auto mode a tool call that comes back 'ask' goes to the classifier, not to you, so there is no approval to wait on.
+let isAutoMode = false
 
 /** Records a notification in the inbox, toasts it, and (when `native`) raises an OS notification. */
 async function push($: EngineInterface, kind: NotifyKind, title: string, body: string, native: boolean) {
@@ -108,6 +110,13 @@ export const register: Register = (on, options) => {
     return result
   })
 
+  on('prompt.attachment', async ($, e, next) => {
+    if (e.type === 'auto_mode') isAutoMode = true
+    else if (e.type === 'auto_mode_exit') isAutoMode = false
+
+    return next(e)
+  })
+
   on('session.receive', async ($, e, next) => {
     if (e.origin.kind === 'task-notification') {
       const status = /<status>([^<]+)<\/status>/.exec(e.text)?.[1]
@@ -135,7 +144,7 @@ export const register: Register = (on, options) => {
       // no verdict available; treat as allow
     }
 
-    if (check.decision === 'ask' && approvalWaitSeconds >= 0) {
+    if (check.decision === 'ask' && !isAutoMode && approvalWaitSeconds >= 0) {
       const timer = $.clock.after(approvalWaitSeconds * 1000, () => {
         void push($, 'approval', `Waiting for your approval${agentId ? ' (subagent)' : ''}`, `${tool}`, true)
       })
