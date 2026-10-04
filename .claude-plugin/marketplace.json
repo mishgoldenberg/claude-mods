@@ -6,6 +6,7 @@
     "version": "0.1.0"
   },
   "plugins": [
+    { "name": "mod-manager", "source": "./plugins/mod-manager", "description": "Start here: one panel (/mods) to install, turn on or off, or remove each claude-mod, with presets.", "category": "productivity" },
     { "name": "quickbar", "source": "./plugins/quickbar", "description": "One-line launcher above the prompt: live context % and buttons for every claude-mods panel.", "category": "productivity" },
     { "name": "context-keeper", "source": "./plugins/context-keeper", "description": "Context-window panel: what fills it, handoff checkpoints before compact/clear, transcript archive, early warnings.", "category": "productivity" },
     { "name": "usage-meter", "source": "./plugins/usage-meter", "description": "Plan-limit bars with burn rate and time-to-empty, session cost, cache hit ratio, tokens-per-turn sparkline.", "category": "productivity" },

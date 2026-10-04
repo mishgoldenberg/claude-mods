@@ -30,6 +30,7 @@ They are deliberately boring about tokens. Nine of the eleven never call a model
 
 | | |
 |---|---|
+| 🧩 **mod-manager** | One panel (`/mods`) to install, turn on or off, or remove each mod, with presets (Safety only, Essentials, Zero tokens, Everything). Install this first and pick the rest |
 | 🚦 **quickbar** | One line above the prompt: live context % and a button for every claude-mods panel you have installed. Start here |
 | 🧠 **context-keeper** | What fills your context window, tips to trim it, and **checkpoints**: a handoff note (goal, decisions, files, TODOs) saved to `.claude/checkpoints/` so `/clear` and `/compact` stop losing the thread. Archives the raw transcript before every compaction, for zero tokens |
 | 📈 **usage-meter** | 5-hour and 7-day plan-limit bars with reset countdown, **burn rate and "full in ~2.3h"**, session cost, cache hit ratio (and why it's low), tokens-per-turn sparkline |
@@ -101,34 +102,50 @@ They are deliberately boring about tokens. Nine of the eleven never call a model
 
 **Prerequisites:** Claude Code **2.1.286 or newer** (`claude update`). Panels dock beside the chat in the desktop app or a terminal ≥ 144 columns wide, and open inline in narrower terminals.
 
-### 1. Add the marketplace
+### 1. Add the marketplace and the manager
 
-Inside Claude Code:
+From any terminal:
 
+```bash
+claude plugin marketplace add mishgoldenberg/claude-mods
+claude plugin install mod-manager@claude-mods
 ```
-/plugin marketplace add mishgoldenberg/claude-mods
-```
+
+(In the Claude Code CLI you can also use `/plugin marketplace add mishgoldenberg/claude-mods` and the `/plugin` menu.)
 
 ### 2. Pick your mods
 
-```
-/plugin
-```
+Restart Claude Code and type `/mods`. The manager lists every mod with what it does and whether it uses tokens. Install, turn on or off, or remove each one with a click, or apply a preset:
 
-Open the **claude-mods** marketplace and install what you want, or install everything from your shell:
+| Preset | What you get |
+|---|---|
+| **Safety only** | guardrails, notify |
+| **Essentials** | guardrails, activity, notify, context-keeper, usage-meter |
+| **Zero tokens** | every mod that never calls a model |
+| **Everything** | all eleven |
+
+Presets turn off what they don't list and never remove anything. Changes apply in your next session.
+
+### 3. Open the quickbar
+
+Type `/quickbar`. Every installed panel is one click away from there.
+
+> **Or just ask Claude:** *"Install the claude-mods plugins from github.com/mishgoldenberg/claude-mods. Follow its INSTALL-FOR-CLAUDE.md."*
+
+### VS Code
+
+The VS Code extension has no `/plugin` menu, so install from a terminal with the two commands in step 1, then use `/mods` inside VS Code. Mods need the extension to run Claude Code 2.1.286 or newer.
+
+<details>
+<summary>Install everything without the manager</summary>
 
 ```bash
-for m in quickbar context-keeper usage-meter notify activity guardrails \
-         prompt-coach toolbox command-hub changes loop-breaker; do
+for m in quickbar context-keeper usage-meter notify activity guardrails          prompt-coach toolbox command-hub changes loop-breaker; do
   claude plugin install "$m@claude-mods"
 done
 ```
 
-### 3. Open the quickbar
-
-Restart Claude Code, then type `/quickbar`. Every installed panel is one click away from there.
-
-> **Or just ask Claude:** *"Install the claude-mods plugins from github.com/mishgoldenberg/claude-mods. Follow its INSTALL-FOR-CLAUDE.md."*
+</details>
 
 ### Try one without installing
 
@@ -143,6 +160,7 @@ claude --plugin-dir claude-mods/plugins/activity --plugin-dir claude-mods/plugin
 
 | Command | Mod | What it does |
 |---|---|---|
+| `/mods` | mod-manager | Install, turn on or off, or remove mods; apply a preset |
 | `/quickbar` | quickbar | Show or hide the launcher above the prompt |
 | `/ctx` | context-keeper | Open the context panel |
 | `/checkpoint` | context-keeper | Save a handoff note of this session now |

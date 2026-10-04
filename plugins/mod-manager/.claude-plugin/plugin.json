@@ -1,0 +1,15 @@
+{
+  "name": "mod-manager",
+  "version": "0.1.0",
+  "description": "Pick which claude-mods you want: install, turn on or off, or remove each mod from one panel (/mods), with presets. No need to install everything.",
+  "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "cliPath": {
+      "type": "string",
+      "title": "Claude Code command",
+      "description": "The command the manager runs to install and toggle mods. Leave as \"claude\" unless claude is not on your PATH.",
+      "default": "claude"
+    }
+  }
+}

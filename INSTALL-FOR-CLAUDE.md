@@ -15,14 +15,15 @@ You are Claude Code and the user asked you to install mods from this repository.
    - **command-hub**: discover/search/create slash commands
    - **changes**: files changed this session with line counts
    - **loop-breaker**: stops Claude going in circles
-3. Add the marketplace (once):
+3. Add the marketplace (once) and install the manager:
    ```
    claude plugin marketplace add mishgoldenberg/claude-mods
+   claude plugin install mod-manager@claude-mods
    ```
 4. Install each chosen mod:
    ```
    claude plugin install <mod>@claude-mods
    ```
-5. Tell the user to restart Claude Code (or run `/reload-plugins` if available), then type `/quickbar` or the mod's command from the README table.
+5. Tell the user to restart Claude Code (or run `/reload-plugins` if available), then type `/mods` to see and change what is installed, or `/quickbar` to open the launcher.
 
 Do not change any other settings. If an install fails, show the error and stop.
