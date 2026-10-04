@@ -7,6 +7,8 @@ export type ModRow = {
   status: ModStatus
   version?: string
   scope?: string
+  /** The folder a local or project install belongs to; the CLI is run from there. */
+  projectPath?: string
 }
 
 declare module 'claude-code' {

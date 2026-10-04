@@ -35,30 +35,57 @@ const PRESETS: { id: string; label: string; mods: string[] }[] = [
 let cliPath = 'claude'
 
 type Listing = {
-  installed?: { id: string; version?: string; scope?: string; enabled?: boolean }[]
+  installed?: { id: string; version?: string; scope?: string; enabled?: boolean; projectPath?: string }[]
   available?: { name: string; description?: string; marketplaceName?: string }[]
 }
 
 /** Runs `claude plugin …`; through cmd on Windows so an npm-installed claude.cmd resolves too. */
-async function cli($: EngineInterface, args: string[], timeoutMs = 120000) {
+async function cli($: EngineInterface, args: string[], timeoutMs = 120000, cwd?: string) {
   const argv = (await $.env.get('OS')) === 'Windows_NT' ? ['cmd', '/d', '/c', cliPath, ...args] : [cliPath, ...args]
 
-  return $.process.run(argv, { timeoutMs })
+  return $.process.run(argv, cwd === undefined ? { timeoutMs } : { timeoutMs, cwd })
+}
+
+const normPath = (path: string) => path.replace(/[\\/]+/g, '/').replace(/\/$/, '').toLowerCase()
+
+/** True when `dir` is `root` or inside it. */
+const isWithin = (dir: string, root: string) => {
+  const d = normPath(dir)
+  const r = normPath(root)
+
+  return d === r || d.startsWith(`${r}/`)
+}
+
+async function readListing($: EngineInterface, cwd?: string) {
+  const result = await cli($, ['plugin', 'list', '--available', '--json'], 60000, cwd)
+  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `exit ${result.exitCode}`)
+
+  return JSON.parse(result.stdout) as Listing
 }
 
 /** Reads what is installed and what the marketplace offers, and merges it with the catalog. */
 async function refresh($: EngineInterface) {
   let listing: Listing
+  // Local and project installs belong to the folder they were made in, and the CLI only sees them
+  // from there. A session in a subfolder asks from the project folder instead.
+  let root: string | undefined
   try {
-    const result = await cli($, ['plugin', 'list', '--available', '--json'], 60000)
-    if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `exit ${result.exitCode}`)
-    listing = JSON.parse(result.stdout) as Listing
+    const here = await $.session.cwd()
+    listing = await readListing($)
+    root = (listing.installed ?? [])
+      .map(p => p.projectPath)
+      .filter((path): path is string => path !== undefined && path !== '' && isWithin(here, path))
+      .sort((a, b) => b.length - a.length)[0]
+    if (root !== undefined && normPath(root) !== normPath(here)) listing = await readListing($, root)
   } catch (error) {
     await update($, message, () => `Couldn't run "${cliPath} plugin list" (${String(error).slice(0, 160)}). Set the Claude Code command in /config if claude isn't on your PATH.`)
     return
   }
 
-  const installed = new Map((listing.installed ?? []).filter(p => p.id.endsWith(`@${MARKETPLACE}`)).map(p => [p.id.split('@')[0] ?? '', p]))
+  const mine = (listing.installed ?? []).filter(p => p.id.endsWith(`@${MARKETPLACE}`))
+  // Another project's local install is not this session's; leave it out.
+  const visible = mine.filter(p => p.projectPath === undefined || p.projectPath === '' || (root !== undefined && normPath(p.projectPath) === normPath(root)))
+  const installed = new Map(visible.map(p => [p.id.split('@')[0] ?? '', p]))
   const offered = new Map((listing.available ?? []).filter(p => p.marketplaceName === MARKETPLACE).map(p => [p.name, p]))
   if (installed.size === 0 && offered.size === 0) {
     await update($, message, () => `The ${MARKETPLACE} marketplace isn't added yet. Run: ${cliPath} plugin marketplace add mishgoldenberg/claude-mods`)
@@ -73,7 +100,7 @@ async function refresh($: EngineInterface) {
     const own = installed.get(m.name)
     const status: ModStatus = own === undefined ? 'available' : own.enabled === false ? 'off' : 'on'
 
-    return { ...m, status, version: own?.version, scope: own?.scope }
+    return { ...m, status, version: own?.version, scope: own?.scope, projectPath: own?.projectPath || undefined }
   })
   await update($, rows, () => next)
 }
@@ -82,7 +109,8 @@ async function refresh($: EngineInterface) {
 async function change($: EngineInterface, row: ModRow, action: 'install' | 'enable' | 'disable' | 'uninstall') {
   const id = `${row.name}@${MARKETPLACE}`
   const scope = row.scope !== undefined && action !== 'install' ? ['--scope', row.scope] : []
-  const result = await cli($, ['plugin', action, id, ...scope]).catch((error: unknown) => ({ exitCode: 1, stdout: '', stderr: String(error) }))
+  const cwd = action === 'install' ? undefined : row.projectPath
+  const result = await cli($, ['plugin', action, id, ...scope], 120000, cwd).catch((error: unknown) => ({ exitCode: 1, stdout: '', stderr: String(error) }))
   if (result.exitCode !== 0) {
     await update($, message, () => `${action} ${row.name} failed: ${(result.stderr || result.stdout).trim().split('\n').at(-1)?.slice(0, 200) ?? 'unknown error'}`)
     return false
