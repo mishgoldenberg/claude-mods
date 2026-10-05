@@ -240,7 +240,7 @@ Guardrails turns on **Safe defaults** the first time it loads. `/guard-preset of
 Mods run inside Claude Code with your permissions and no sandbox, so this is the right question to ask about any mod, including these. What these ones do:
 
 - **No network.** No mod makes a web request, and there is no telemetry. Nothing leaves your machine except the two opt-in model calls below, which go through your own Claude Code session like any prompt.
-- **Processes they start, all of them:** `git diff --numstat` (changes), the `claude plugin` CLI when you click in `/mods` (mod-manager), your OS notification tool (notify), and `gh --version` to see whether the GitHub CLI exists (toolbox).
+- **Processes they start, all of them:** `git diff --numstat` (changes), the `claude plugin` CLI when you open `/mods` or click in it (mod-manager; only Install, Update and Check for updates go online, through Claude Code's own plugin installer), your OS notification tool (notify), and `gh --version` to see whether the GitHub CLI exists (toolbox).
 - **Files they write:** checkpoints and pre-compaction archives under `.claude/checkpoints/` (context-keeper), and a new slash command file when you use the form (command-hub). Nothing else.
 - **Model calls:** prompt-coach and context-keeper's handoff note, both listed below and both easy to turn off.
 
