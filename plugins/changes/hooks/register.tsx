@@ -1,7 +1,51 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { DiffStat, FileChange } from '../types'
+
+// ── claude-mods kit v1 (docs/design.md): identical in every mod ──
+const TONE = { accent: 'claude', ok: 'success', warn: 'warning', bad: 'error', dim: 'inactive' } as const
+const GLYPH = { on: '●', off: '○', warn: '▲', ok: '✓', fail: '✗' } as const
+type Kit = Pick<ElementTable, 'Box' | 'Text'>
+
+/** Pane header: state glyph, mod name, one-line live status. */
+function header({ Box, Text }: Kit, glyph: string, tone: string, name: string, status: string) {
+  return (
+    <Box gap={1}>
+      <Text color={tone}>{glyph}</Text>
+      <Text bold>{name}</Text>
+      <Text dimColor wrap="truncate-end">{status}</Text>
+    </Box>
+  )
+}
+
+/** A section: a dim label (with optional small controls beside it), then its rows. */
+function section({ Box, Text }: Kit, label: string, rows: RenderChildren, aside?: RenderChildren) {
+  return (
+    <Box flexDirection="column">
+      <Box gap={1}>
+        <Text dimColor>{label}</Text>
+        {aside}
+      </Box>
+      {rows}
+    </Box>
+  )
+}
+
+/** A number right-aligned in a fixed-width cell. */
+function num({ Box, Text }: Kit, value: string, width: number, color?: string) {
+  return (
+    <Box width={width} flexShrink={0} justifyContent="flex-end">
+      <Text color={color}>{value}</Text>
+    </Box>
+  )
+}
+
+/** Empty state: what will show up here, and how to get it. */
+function empty({ Text }: Kit, text: string) {
+  return <Text dimColor>{text}</Text>
+}
+// ── end kit ──
 
 const PANE = 'changes'
 const files = atom({ plugin: 'changes', key: 'files' } as const, [])
@@ -87,40 +131,40 @@ export const register: Register = on => {
       return { added: t.added + (s?.added ?? 0), removed: t.removed + (s?.removed ?? 0) }
     }, { added: 0, removed: 0 })
 
+    const kit = { Box, Text }
+    const status = list.length === 0 ? 'no edits yet' : `${list.length} file${list.length === 1 ? '' : 's'} changed${git ? ` · +${totals.added} -${totals.removed}` : ''}`
+
     return (
       <Box flexDirection="column" gap={1}>
-        <Text bold>
-          {list.length} file{list.length === 1 ? '' : 's'} changed by Claude
-          {git && (
-            <Text>
-              {' '}
-              <Text color="green">+{totals.added}</Text> <Text color="red">-{totals.removed}</Text>
-            </Text>
-          )}
-        </Text>
-        {list.length === 0 && <Text dimColor>No edits yet this session.</Text>}
-        {list.map((f, i) => {
-          const s = statOf(f.path)
+        {header(kit, list.length > 0 ? GLYPH.on : GLYPH.off, list.length > 0 ? TONE.accent : TONE.dim, 'changes', status)}
+        {section(
+          kit,
+          'Files',
+          <Box flexDirection="column">
+            {list.length === 0 && empty(kit, 'No edits yet. Files Claude creates or edits this session show up here, with +/- line counts.')}
+            {list.map((f, i) => {
+              const s = statOf(f.path)
 
-          return (
-            <Box gap={1}>
-              <Text wrap="truncate-start">
-                {f.created ? <Text color="green">new </Text> : <Text dimColor>{'    '}</Text>}
-                {f.path}
-              </Text>
-              {s !== undefined && (
-                <Text>
-                  <Text color="green">+{s.added}</Text> <Text color="red">-{s.removed}</Text>
-                </Text>
-              )}
-              <Text dimColor>{f.edits}×</Text>
-              <Button key={`why-${i}`} plain label="why?" onPress={() => void $.prompt.fill({ text: `Briefly explain what you changed in ${f.path} and why.` })} />
-            </Box>
-          )
-        })}
+              return (
+                <Box gap={1}>
+                  <Box flexGrow={1} flexShrink={1}>
+                    <Text wrap="truncate-start">
+                      {f.created ? <Text color={TONE.ok}>new </Text> : ''}
+                      {f.path}
+                    </Text>
+                  </Box>
+                  {s !== undefined && num(kit, `+${s.added}`, 6, TONE.ok)}
+                  {s !== undefined && num(kit, `-${s.removed}`, 6, TONE.bad)}
+                  {num(kit, `${f.edits}×`, 4)}
+                  <Button key={`why-${i}`} plain label="why?" onPress={() => void $.prompt.fill({ text: `Briefly explain what you changed in ${f.path} and why.` })} />
+                </Box>
+              )
+            })}
+          </Box>,
+        )}
         {list.length > 0 && (
           <Box gap={1} flexWrap="wrap">
-            <Button key="summary" hotkey="s" label="Summarize all changes" onPress={() => void $.prompt.submit({ text: `Summarize every change you made this session, file by file (${list.map(f => f.path).join(', ')}): what and why, and anything I should double-check.` })} />
+            <Button key="summary" hotkey="s" variant="primary" label="Summarize all changes" onPress={() => void $.prompt.submit({ text: `Summarize every change you made this session, file by file (${list.map(f => f.path).join(', ')}): what and why, and anything I should double-check.` })} />
             <Button key="review" hotkey="v" label="Self-review" onPress={() => void $.prompt.submit({ text: `Review your own changes this session (${list.map(f => f.path).join(', ')}) like a strict code reviewer: bugs, leftovers, missing tests. Do not change anything yet.` })} />
             {git && <Button key="refresh" hotkey="r" label="Refresh diff" onPress={() => void refreshDiff($)} />}
           </Box>

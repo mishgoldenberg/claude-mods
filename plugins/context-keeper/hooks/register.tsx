@@ -1,7 +1,51 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Checkpoint, ContextSnapshot } from '../types'
+
+// ── claude-mods kit v1 (docs/design.md): identical in every mod ──
+const TONE = { accent: 'claude', ok: 'success', warn: 'warning', bad: 'error', dim: 'inactive' } as const
+const GLYPH = { on: '●', off: '○', warn: '▲', ok: '✓', fail: '✗' } as const
+type Kit = Pick<ElementTable, 'Box' | 'Text'>
+
+/** Pane header: state glyph, mod name, one-line live status. */
+function header({ Box, Text }: Kit, glyph: string, tone: string, name: string, status: string) {
+  return (
+    <Box gap={1}>
+      <Text color={tone}>{glyph}</Text>
+      <Text bold>{name}</Text>
+      <Text dimColor wrap="truncate-end">{status}</Text>
+    </Box>
+  )
+}
+
+/** A section: a dim label (with optional small controls beside it), then its rows. */
+function section({ Box, Text }: Kit, label: string, rows: RenderChildren, aside?: RenderChildren) {
+  return (
+    <Box flexDirection="column">
+      <Box gap={1}>
+        <Text dimColor>{label}</Text>
+        {aside}
+      </Box>
+      {rows}
+    </Box>
+  )
+}
+
+/** A number right-aligned in a fixed-width cell. */
+function num({ Box, Text }: Kit, value: string, width: number, color?: string) {
+  return (
+    <Box width={width} flexShrink={0} justifyContent="flex-end">
+      <Text color={color}>{value}</Text>
+    </Box>
+  )
+}
+
+/** Empty state: what will show up here, and how to get it. */
+function empty({ Text }: Kit, text: string) {
+  return <Text dimColor>{text}</Text>
+}
+// ── end kit ──
 
 const PANE = 'context-keeper'
 const snapshot = atom({ plugin: 'context-keeper', key: 'snapshot' } as const, null)
@@ -206,83 +250,107 @@ export const register: Register = (on, options) => {
     const working = await read($, busy)
     const width = Math.max(10, Math.min(40, (e.props.bodyColumns ?? 40) - 12))
 
+    const kit = { Box, Text }
+
     if (snap === null) {
       return (
-        <Box flexDirection="column">
-          <Text dimColor>No reading yet.</Text>
-          <Button key="refresh" label="Measure now" onPress={() => void refresh($)} />
+        <Box flexDirection="column" gap={1}>
+          {header(kit, GLYPH.off, TONE.dim, 'context-keeper', 'no reading yet')}
+          {empty(kit, 'The context reading updates after every turn. Measure now to see what fills the window already.')}
+          <Box>
+            <Button key="refresh" hotkey="r" variant="primary" label="Measure now" onPress={() => void refresh($)} />
+          </Box>
         </Box>
       )
     }
 
-    const color = snap.percent >= checkpointAt ? 'red' : snap.percent >= warnAt ? 'yellow' : 'green'
+    const pct = Math.round(snap.percent)
+    const tone = snap.percent >= checkpointAt ? TONE.bad : snap.percent >= warnAt ? TONE.warn : TONE.accent
+    const glyph = snap.percent >= warnAt ? GLYPH.warn : GLYPH.on
     const tips = snap.categories.map(c => TIPS[c.name]).filter((t): t is string => t !== undefined).slice(0, 2)
 
     return (
       <Box flexDirection="column" gap={1}>
         <Box flexDirection="column">
-          <Text bold>
-            Context <Text color={color}>{Math.round(snap.percent)}%</Text>
-          </Text>
-          <Text color={color}>{bar(snap.percent, width)}</Text>
-          <Text dimColor>
-            {k(snap.tokens)} of {k(snap.window)} tokens · {k(Math.max(0, snap.window - snap.tokens))} left
+          {header(kit, glyph, tone, 'context-keeper', `${pct}% full · ${k(Math.max(0, snap.window - snap.tokens))} left`)}
+          <Text color={tone}>{bar(snap.percent, width)}</Text>
+          <Text dimColor wrap="truncate-end">
+            {k(snap.tokens)} of {k(snap.window)} tokens
           </Text>
         </Box>
 
-        <Box flexDirection="column">
-          <Text bold>What fills it</Text>
-          {snap.categories.slice(0, 7).map(c => (
-            <Text>
-              {c.name.padEnd(20).slice(0, 20)} {k(c.tokens).padStart(6)} <Text dimColor>{bar((c.tokens / Math.max(1, snap.window)) * 100, 12)}</Text>
-            </Text>
-          ))}
-          {snap.memoryFiles.length > 0 && <Text dimColor>Largest memory file: {snap.memoryFiles[0]?.path.split(/[\\/]/).at(-1)} ({k(snap.memoryFiles[0]?.tokens ?? 0)})</Text>}
-        </Box>
-
-        {tips.length > 0 && (
+        {section(
+          kit,
+          'What fills it',
           <Box flexDirection="column">
-            <Text bold>Tips</Text>
-            {tips.map(t => (
-              <Text dimColor>• {t}</Text>
+            {snap.categories.length === 0 && empty(kit, 'No breakdown yet. It fills in after the first turn.')}
+            {snap.categories.slice(0, 7).map(c => (
+              <Box gap={1}>
+                <Box flexGrow={1} flexShrink={1}>
+                  <Text wrap="truncate-end">{c.name}</Text>
+                </Box>
+                {num(kit, k(c.tokens), 7)}
+                <Text dimColor>{bar((c.tokens / Math.max(1, snap.window)) * 100, 12)}</Text>
+              </Box>
             ))}
-          </Box>
+            {snap.memoryFiles.length > 0 && (
+              <Text dimColor wrap="truncate-end">
+                Largest memory file: {snap.memoryFiles[0]?.path.split(/[\/]/).at(-1)} ({k(snap.memoryFiles[0]?.tokens ?? 0)})
+              </Text>
+            )}
+          </Box>,
         )}
 
-        <Box flexDirection="column">
-          <Text bold>Actions</Text>
-          {working !== null && <Text color="cyan">{working}</Text>}
-          <Box gap={1} flexWrap="wrap">
-            <Button key="refresh" hotkey="r" label="Refresh" onPress={() => void refresh($)} />
-            <Button key="checkpoint" hotkey="c" variant="primary" label="Checkpoint" onPress={() => void writeHandoff($, 'manual')} />
-            <Button key="compact" hotkey="k" label="Checkpoint + compact" onPress={() => void writeHandoff($, 'before compact').then(() => $.command.run({ command: 'compact' }))} />
-          </Box>
-          {Input !== undefined && (<Input
-            key="focus"
-            label="Compact, keeping:"
-            placeholder="e.g. the auth refactor and failing tests"
-            submitLabel="Compact"
-            onSubmit={(value: string) => void $.command.run({ command: 'compact', args: value })}
-          />)}
-        </Box>
+        {tips.length > 0 &&
+          section(
+            kit,
+            'Tips',
+            tips.map(t => <Text dimColor>• {t}</Text>),
+          )}
 
-        <Box flexDirection="column">
-          <Text bold>Checkpoints</Text>
-          {cps.length === 0 && <Text dimColor>None yet. A checkpoint is a handoff note you can reload after /clear.</Text>}
-          {cps.slice(0, 4).map((cp, i) => (
-            <Box gap={1}>
-              <Text dimColor>
-                {new Date(cp.at).toLocaleTimeString()} {cp.kind} @{Math.round(cp.percent)}%
-              </Text>
-              <Button
-                key={`load-${i}`}
-                plain
-                label="load"
-                onPress={() => void $.prompt.fill({ text: `Read ${cp.path} and continue the work from where it left off. Confirm the next step before acting.` })}
-              />
+        {section(
+          kit,
+          'Actions',
+          <Box flexDirection="column">
+            {working !== null && <Text color={TONE.accent}>{GLYPH.on} {working}</Text>}
+            <Box gap={1} flexWrap="wrap">
+              <Button key="checkpoint" hotkey="c" variant="primary" label="Checkpoint" onPress={() => void writeHandoff($, 'manual')} />
+              <Button key="compact" hotkey="k" label="Checkpoint + compact" onPress={() => void writeHandoff($, 'before compact').then(() => $.command.run({ command: 'compact' }))} />
+              <Button key="refresh" hotkey="r" label="Refresh" onPress={() => void refresh($)} />
             </Box>
-          ))}
-        </Box>
+            {Input !== undefined && (
+              <Input
+                key="focus"
+                label="Compact, keeping:"
+                placeholder="e.g. the auth refactor and failing tests"
+                submitLabel="Compact"
+                onSubmit={(value: string) => void $.command.run({ command: 'compact', args: value })}
+              />
+            )}
+          </Box>,
+        )}
+
+        {section(
+          kit,
+          'Checkpoints',
+          <Box flexDirection="column">
+            {cps.length === 0 && empty(kit, 'None yet. A checkpoint is a handoff note (goal, decisions, files, TODOs) you can reload after /clear.')}
+            {cps.slice(0, 4).map((cp, i) => (
+              <Box gap={1}>
+                <Text color={TONE.ok}>{GLYPH.ok}</Text>
+                <Text dimColor wrap="truncate-end">
+                  {new Date(cp.at).toLocaleTimeString()} {cp.kind} at {Math.round(cp.percent)}%
+                </Text>
+                <Button
+                  key={`load-${i}`}
+                  plain
+                  label="load"
+                  onPress={() => void $.prompt.fill({ text: `Read ${cp.path} and continue the work from where it left off. Confirm the next step before acting.` })}
+                />
+              </Box>
+            ))}
+          </Box>,
+        )}
       </Box>
     )
   })

@@ -1,7 +1,51 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { ActivityCall, CallStatus, Phase, Todo } from '../types'
+
+// ── claude-mods kit v1 (docs/design.md): identical in every mod ──
+const TONE = { accent: 'claude', ok: 'success', warn: 'warning', bad: 'error', dim: 'inactive' } as const
+const GLYPH = { on: '●', off: '○', warn: '▲', ok: '✓', fail: '✗' } as const
+type Kit = Pick<ElementTable, 'Box' | 'Text'>
+
+/** Pane header: state glyph, mod name, one-line live status. */
+function header({ Box, Text }: Kit, glyph: string, tone: string, name: string, status: string) {
+  return (
+    <Box gap={1}>
+      <Text color={tone}>{glyph}</Text>
+      <Text bold>{name}</Text>
+      <Text dimColor wrap="truncate-end">{status}</Text>
+    </Box>
+  )
+}
+
+/** A section: a dim label (with optional small controls beside it), then its rows. */
+function section({ Box, Text }: Kit, label: string, rows: RenderChildren, aside?: RenderChildren) {
+  return (
+    <Box flexDirection="column">
+      <Box gap={1}>
+        <Text dimColor>{label}</Text>
+        {aside}
+      </Box>
+      {rows}
+    </Box>
+  )
+}
+
+/** A number right-aligned in a fixed-width cell. */
+function num({ Box, Text }: Kit, value: string, width: number, color?: string) {
+  return (
+    <Box width={width} flexShrink={0} justifyContent="flex-end">
+      <Text color={color}>{value}</Text>
+    </Box>
+  )
+}
+
+/** Empty state: what will show up here, and how to get it. */
+function empty({ Text }: Kit, text: string) {
+  return <Text dimColor>{text}</Text>
+}
+// ── end kit ──
 
 const PANE = 'activity'
 const calls = atom({ plugin: 'activity', key: 'calls' } as const, [])
@@ -10,14 +54,14 @@ const todos = atom({ plugin: 'activity', key: 'todos' } as const, [])
 const showAll = atom({ plugin: 'activity', key: 'showAll' } as const, false)
 
 const STATUS: Record<CallStatus, { icon: string; color: string; label: string }> = {
-  running: { icon: '◐', color: 'cyan', label: 'running' },
-  approval: { icon: '⏸', color: 'yellow', label: 'waiting for YOUR approval' },
-  done: { icon: '✔', color: 'green', label: 'done' },
-  failed: { icon: '✘', color: 'red', label: 'failed' },
-  denied: { icon: '⊘', color: 'magenta', label: 'denied' },
+  running: { icon: GLYPH.on, color: TONE.accent, label: 'running' },
+  approval: { icon: GLYPH.warn, color: TONE.warn, label: 'waiting for YOUR approval' },
+  done: { icon: GLYPH.ok, color: TONE.ok, label: 'done' },
+  failed: { icon: GLYPH.fail, color: TONE.bad, label: 'failed' },
+  denied: { icon: GLYPH.fail, color: TONE.bad, label: 'denied' },
 }
 
-const TODO_ICON: Record<string, string> = { completed: '☑', in_progress: '▶', pending: '☐' }
+const TODO_ICON: Record<string, string> = { completed: GLYPH.ok, in_progress: GLYPH.on, pending: GLYPH.off }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 const base = (p: string) => p.split(/[\\/]/).at(-1) ?? p
@@ -165,74 +209,86 @@ export const register: Register = (on, options) => {
     const runningAgents = agents.filter(a => a.status === 'running')
     const recent = list.filter(c => !live.includes(c) && (all || c.agentId === undefined)).slice(-Math.max(3, rows - 18 - live.length - plan.length))
 
+    const kit = { Box, Text }
     const headline =
       waitingOnYou.length > 0
-        ? { color: 'yellow', text: `⏸ Waiting for you: approve ${waitingOnYou.map(c => c.tool).join(', ')}` }
+        ? { glyph: GLYPH.warn, tone: TONE.warn, text: `Waiting for you: approve ${waitingOnYou.map(c => c.tool).join(', ')}` }
         : p.kind === 'idle'
-          ? { color: 'gray', text: '○ Idle: waiting for your next prompt' }
+          ? { glyph: GLYPH.off, tone: TONE.dim, text: 'Idle: waiting for your next prompt' }
           : p.kind === 'tools'
-            ? { color: 'cyan', text: `◐ Running ${live.length} tool${live.length === 1 ? '' : 's'} · turn ${secs(now - p.since)}` }
-            : { color: 'cyan', text: `◐ Thinking / writing · turn ${secs(now - p.since)}` }
+            ? { glyph: GLYPH.on, tone: TONE.accent, text: `Running ${live.length} tool${live.length === 1 ? '' : 's'} · turn ${secs(now - p.since)}` }
+            : { glyph: GLYPH.on, tone: TONE.accent, text: `Thinking / writing · turn ${secs(now - p.since)}` }
 
     return (
       <Box flexDirection="column" gap={1}>
         <Box flexDirection="column">
-          <Text bold color={headline.color}>
-            {headline.text}
-          </Text>
-          {p.kind !== 'idle' && p.prompt !== '' && <Text dimColor>for: {clip(p.prompt.replace(/\s+/g, ' '), cols - 6)}</Text>}
+          {header(kit, headline.glyph, headline.tone, 'activity', headline.text)}
+          {p.kind !== 'idle' && p.prompt !== '' && <Text dimColor wrap="truncate-end">for: {clip(p.prompt.replace(/\s+/g, ' '), cols - 6)}</Text>}
         </Box>
 
-        {live.length > 0 && (
-          <Box flexDirection="column">
-            <Text bold>Now</Text>
-            {live.map(c => (
-              <Text color={STATUS[c.status].color} wrap="truncate-end">
-                {STATUS[c.status].icon} {c.tool} {secs(now - c.startedAt)}
-                {c.agentId ? ' [subagent]' : ''}
-                {c.isBackground ? ' [background]' : ''} <Text dimColor>{c.summary}</Text>
-              </Text>
-            ))}
-          </Box>
-        )}
+        {live.length > 0 &&
+          section(
+            kit,
+            'Now',
+            live.map(c => (
+              <Box gap={1}>
+                <Text color={STATUS[c.status].color}>{STATUS[c.status].icon}</Text>
+                <Text>{c.tool}</Text>
+                {num(kit, secs(now - c.startedAt), 6, STATUS[c.status].color)}
+                <Text dimColor wrap="truncate-end">
+                  {c.agentId ? '[subagent] ' : ''}
+                  {c.isBackground ? '[background] ' : ''}
+                  {c.summary}
+                </Text>
+              </Box>
+            )),
+          )}
 
-        {runningAgents.length > 0 && (
-          <Box flexDirection="column">
-            <Text bold>Subagents</Text>
-            {runningAgents.map(a => (
+        {runningAgents.length > 0 &&
+          section(
+            kit,
+            'Subagents',
+            runningAgents.map(a => (
               <Text wrap="truncate-end">
-                ◆ {a.type} <Text dimColor>{a.description}</Text>
+                <Text color={TONE.accent}>{GLYPH.on}</Text> {a.type} <Text dimColor>{a.description}</Text>
               </Text>
-            ))}
-          </Box>
-        )}
+            )),
+          )}
 
-        {plan.length > 0 && (
-          <Box flexDirection="column">
-            <Text bold>
-              Plan ({plan.filter(t => t.status === 'completed').length}/{plan.length})
-            </Text>
-            {plan.map(t => (
+        {plan.length > 0 &&
+          section(
+            kit,
+            `Plan ${plan.filter(t => t.status === 'completed').length}/${plan.length}`,
+            plan.map(t => (
               <Text dimColor={t.status === 'completed'} bold={t.status === 'in_progress'} wrap="truncate-end">
-                {TODO_ICON[t.status] ?? '•'} {t.status === 'in_progress' ? (t.activeForm ?? t.content) : t.content}
+                <Text color={t.status === 'completed' ? TONE.ok : t.status === 'in_progress' ? TONE.accent : undefined}>{TODO_ICON[t.status] ?? GLYPH.off}</Text> {t.status === 'in_progress' ? (t.activeForm ?? t.content) : t.content}
               </Text>
-            ))}
-          </Box>
-        )}
+            )),
+          )}
 
-        <Box flexDirection="column">
+        {section(
+          kit,
+          'History',
+          <Box flexDirection="column">
+            {recent.length === 0 && empty(kit, 'No tool calls yet. Every tool Claude runs shows up here with its command and how long it took.')}
+            {recent.map(c => (
+              <Box gap={1}>
+                <Text color={STATUS[c.status].color}>{STATUS[c.status].icon}</Text>
+                <Box width={7} flexShrink={0}>
+                  <Text wrap="truncate-end">{c.tool}</Text>
+                </Box>
+                {num(kit, secs((c.endedAt ?? now) - c.startedAt), 6)}
+                <Text dimColor wrap="truncate-end">
+                  {c.summary}
+                </Text>
+              </Box>
+            ))}
+          </Box>,
           <Box gap={1}>
-            <Text bold>History</Text>
             <Button key="all" plain hotkey="a" label={all ? 'main only' : 'incl. subagents'} onPress={() => void update($, showAll, v => !v)} />
             <Button key="clear" plain hotkey="c" label="clear" onPress={() => void update($, calls, l => l.filter(c => c.status === 'running' || c.status === 'approval'))} />
-          </Box>
-          {recent.length === 0 && <Text dimColor>No tool calls yet.</Text>}
-          {recent.map(c => (
-            <Text wrap="truncate-end">
-              <Text color={STATUS[c.status].color}>{STATUS[c.status].icon}</Text> {c.tool.padEnd(6)} <Text dimColor>{secs((c.endedAt ?? now) - c.startedAt).padStart(5)}</Text> <Text dimColor>{c.summary}</Text>
-            </Text>
-          ))}
-        </Box>
+          </Box>,
+        )}
       </Box>
     )
   })

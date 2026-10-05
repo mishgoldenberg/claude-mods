@@ -30,10 +30,10 @@ They are deliberately boring about tokens. Nine of the eleven never call a model
 
 | | |
 |---|---|
-| 🧩 **mod-manager** | One panel (`/mods`) to install, turn on or off, or remove each mod, with presets (Safety only, Essentials, Zero tokens, Everything). Install this first and pick the rest |
+| 🧩 **mod-manager** | One panel (`/mods`) to install, turn on or off, **update**, or remove each mod, with presets (Safety only, Essentials, Zero tokens, Everything). Shows when a mod has a newer version. Install this first and pick the rest |
 | 🚦 **quickbar** | One line above the prompt: live context % and a button for every claude-mods panel you have installed. Start here |
 | 🧠 **context-keeper** | What fills your context window, tips to trim it, and **checkpoints**: a handoff note (goal, decisions, files, TODOs) saved to `.claude/checkpoints/` so `/clear` and `/compact` stop losing the thread. Archives the raw transcript before every compaction, for zero tokens |
-| 📈 **usage-meter** | 5-hour and 7-day plan-limit bars with reset countdown, **burn rate and "full in ~2.3h"**, session cost, cache hit ratio (and why it's low), tokens-per-turn sparkline |
+| 📈 **usage-meter** | 5-hour and 7-day plan-limit bars with reset countdown, **burn rate and "full in ~2.3h"**, session cost, cache hit ratio (and why it's low), tokens-per-turn sparkline (drawn as charts in the desktop app) |
 | 🔔 **notify** | Notification inbox plus **native OS notifications** (Windows, macOS, Linux) when a long turn ends, a subagent or background task finishes, Claude asks you something, or **an approval has been waiting 15s** |
 | 👀 **activity** | What Claude is doing *this second*: thinking, running `$ npm test` for 0m42s, **waiting for YOUR approval**, which subagents run, and its todo plan with progress |
 | 🛡️ **guardrails** | Clickable safety rules with presets (Safe defaults, Locked to project, Read-only review): block `rm -rf`, mass `kubectl`/`oc` deletes, `terraform destroy`, force-push, destructive git, `.env` and key files, sudo, installs, network; keep Claude inside the project; add your own patterns |
@@ -115,7 +115,7 @@ claude plugin install mod-manager@claude-mods
 
 ### 2. Pick your mods
 
-Restart Claude Code and type `/mods`. The manager lists every mod with what it does and whether it uses tokens. Install, turn on or off, or remove each one with a click, or apply a preset:
+Restart Claude Code. The first session says hello once ("claude-mods ready: /mods to pick your set"). Type `/mods`: the manager lists every mod with what it does, whether it uses tokens, and whether an update is available. Install, turn on or off, update, or remove each one with a click, or apply a preset:
 
 | Preset | What you get |
 |---|---|
@@ -126,9 +126,9 @@ Restart Claude Code and type `/mods`. The manager lists every mod with what it d
 
 Presets turn off what they don't list and never remove anything. Changes apply in your next session.
 
-### 3. Open the quickbar
+### 3. Use the quickbar
 
-Type `/quickbar`. Every installed panel is one click away from there.
+With quickbar installed, a one-line bar sits above the prompt: live context % and a button for every installed panel. `/quickbar` (or its ×) hides it; `/quickbar` again brings it back.
 
 > **Or just ask Claude:** *"Install the claude-mods plugins from github.com/mishgoldenberg/claude-mods. Follow its INSTALL-FOR-CLAUDE.md."*
 
@@ -160,7 +160,7 @@ claude --plugin-dir claude-mods/plugins/activity --plugin-dir claude-mods/plugin
 
 | Command | Mod | What it does |
 |---|---|---|
-| `/mods` | mod-manager | Install, turn on or off, or remove mods; apply a preset |
+| `/mods` | mod-manager | Install, turn on or off, update, or remove mods; apply a preset |
 | `/quickbar` | quickbar | Show or hide the launcher above the prompt |
 | `/ctx` | context-keeper | Open the context panel |
 | `/checkpoint` | context-keeper | Save a handoff note of this session now |
@@ -270,12 +270,17 @@ claude-mods/
 │   │   ├── hooks/
 │   │   │   ├── hooks.json      Points at the hooks module
 │   │   │   └── register.tsx    The mod: hooks, commands, panel
+│   │   ├── tests/
+│   │   │   └── surfaces.test.tsx   The panel draws on every surface (claude plugin test)
 │   │   └── types/
 │   │       └── index.d.ts      Its $.state contract
 │   ├── guardrails/             …same shape for every mod
 │   └── …
+├── docs/
+│   └── design.md               The shared design spec and kit every mod copies
 ├── tests/
-│   └── guardrails-rules.test.mjs   Every rule against real commands
+│   ├── guardrails-rules.test.mjs   Every rule against real commands
+│   └── design-kit.test.mjs     Every mod's kit matches docs/design.md
 ├── INSTALL-FOR-CLAUDE.md       Steps Claude follows when asked to install
 └── tsconfig.json               Type-checks all mods against the engine API
 ```
@@ -301,7 +306,10 @@ npm install
 npm run typecheck
 npm test
 claude plugin validate plugins/<mod>
+claude plugin test plugins/<mod>
 ```
+
+Every mod follows one design spec, **[docs/design.md](docs/design.md)**: theme colors only (Claude orange as the single accent), the same pane header, glyphs, hotkeys and empty states, so the set feels like one product in any theme.
 
 Two house rules worth knowing before you write anything, because the validator enforces both:
 

@@ -6,5 +6,5 @@
     "noEmit": true, "skipLibCheck": true,
     "jsx": "react", "jsxFactory": "h", "jsxFragmentFactory": "Fragment"
   },
-  "include": [".claude/types", "plugins/*/hooks", "plugins/*/types"]
+  "include": [".claude/types", "plugins/*/hooks", "plugins/*/types", "plugins/*/tests"]
 }

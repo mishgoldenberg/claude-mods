@@ -30,5 +30,15 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Guardrails rule tests
+      - name: Guardrails rules and design-kit tests
         run: npm test
+
+      - name: Every pane draws on every surface
+        run: |
+          for mod in plugins/*/; do
+            if [ -d "$mod/tests" ]; then
+              echo "::group::$mod"
+              claude plugin test "$mod"
+              echo "::endgroup::"
+            fi
+          done
