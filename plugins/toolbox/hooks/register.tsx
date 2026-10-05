@@ -1,7 +1,51 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Suggestion, ToolRow } from '../types'
+
+// ── claude-mods kit v1 (docs/design.md): identical in every mod ──
+const TONE = { accent: 'claude', ok: 'success', warn: 'warning', bad: 'error', dim: 'inactive' } as const
+const GLYPH = { on: '●', off: '○', warn: '▲', ok: '✓', fail: '✗' } as const
+type Kit = Pick<ElementTable, 'Box' | 'Text'>
+
+/** Pane header: state glyph, mod name, one-line live status. */
+function header({ Box, Text }: Kit, glyph: string, tone: string, name: string, status: string) {
+  return (
+    <Box gap={1}>
+      <Text color={tone}>{glyph}</Text>
+      <Text bold>{name}</Text>
+      <Text dimColor wrap="truncate-end">{status}</Text>
+    </Box>
+  )
+}
+
+/** A section: a dim label (with optional small controls beside it), then its rows. */
+function section({ Box, Text }: Kit, label: string, rows: RenderChildren, aside?: RenderChildren) {
+  return (
+    <Box flexDirection="column">
+      <Box gap={1}>
+        <Text dimColor>{label}</Text>
+        {aside}
+      </Box>
+      {rows}
+    </Box>
+  )
+}
+
+/** A number right-aligned in a fixed-width cell. */
+function num({ Box, Text }: Kit, value: string, width: number, color?: string) {
+  return (
+    <Box width={width} flexShrink={0} justifyContent="flex-end">
+      <Text color={color}>{value}</Text>
+    </Box>
+  )
+}
+
+/** Empty state: what will show up here, and how to get it. */
+function empty({ Text }: Kit, text: string) {
+  return <Text dimColor>{text}</Text>
+}
+// ── end kit ──
 
 const PANE = 'toolbox'
 const tools = atom({ plugin: 'toolbox', key: 'tools' } as const, [])
@@ -176,46 +220,63 @@ export const register: Register = on => {
     }
     const shortName = (n: string) => n.replace(/^mcp__.+?__/, '')
 
+    const kit = { Box, Text }
+    const usedCount = Object.keys(used).length
+    const shown = [...groups.values()].reduce((n, list) => n + list.length, 0)
+
     return (
       <Box flexDirection="column" gap={1}>
-        <Box flexDirection="column">
-          <Text bold>For this project{found.length > 0 ? ` (${found.join(', ')})` : ''}</Text>
-          {tips.length === 0 && <Text dimColor>Scanning…</Text>}
-          {tips.map(s => (
-            <Box flexDirection="column">
-              <Box gap={1}>
-                <Text color="cyan">★ {s.title}</Text>
-                {s.action !== undefined && <Button key={`act-${s.id}`} plain label={s.action.label} onPress={() => void act($, s)} />}
-              </Box>
-              <Text dimColor>  {s.why}</Text>
-            </Box>
-          ))}
-        </Box>
+        {header(kit, GLYPH.on, TONE.accent, 'toolbox', rows.length === 0 ? 'reading tools…' : `${rows.length} tools · ${usedCount} used this session`)}
 
-        <Box flexDirection="column">
+        {section(
+          kit,
+          `For this project${found.length > 0 ? ` (${found.join(', ')})` : ''}`,
+          <Box flexDirection="column">
+            {tips.length === 0 && empty(kit, 'Looking at this project… suggestions appear here in a moment.')}
+            {tips.map(s => (
+              <Box flexDirection="column">
+                <Box gap={1}>
+                  <Text color={TONE.accent}>{GLYPH.on}</Text>
+                  <Text wrap="truncate-end">{s.title}</Text>
+                  {s.action !== undefined && <Button key={`act-${s.id}`} plain label={s.action.label} onPress={() => void act($, s)} />}
+                </Box>
+                <Box paddingLeft={2}>
+                  <Text dimColor>{s.why}</Text>
+                </Box>
+              </Box>
+            ))}
+          </Box>,
+        )}
+
+        {section(
+          kit,
+          'Tools',
+          <Box flexDirection="column" gap={1}>
+            {shown === 0 && empty(kit, view === 'used' ? 'No tools used yet this session. Counts go up as Claude works.' : view === 'mcp' ? 'No MCP tools connected. /mcp adds servers (databases, browsers, issue trackers…).' : 'Reading the tool list…')}
+            {[...groups.entries()].map(([group, list]) =>
+              section(
+                kit,
+                `${group} (${list.length})`,
+                list.map(t => (
+                  <Box gap={1}>
+                    {(used[t.name] ?? 0) > 0 ? num(kit, `${used[t.name]}×`, 5) : num(kit, '·', 5, TONE.dim)}
+                    <Text wrap="truncate-end">
+                      {shortName(t.name)} <Text dimColor>{t.short}</Text>
+                    </Text>
+                  </Box>
+                )),
+              ),
+            )}
+          </Box>,
           <Box gap={1}>
-            <Text bold>
-              Tools ({rows.length}, {Object.keys(used).length} used)
-            </Text>
             {(['all', 'used', 'mcp'] as const).map((v, i) => (
               <Button key={`f-${v}`} plain hotkey={String(i + 1)} label={view === v ? `[${v}]` : v} onPress={() => void update($, filter, () => v)} />
             ))}
-          </Box>
-          {[...groups.entries()].map(([group, list]) => (
-            <Box flexDirection="column">
-              <Text color="magenta">
-                {group} ({list.length})
-              </Text>
-              {list.map(t => (
-                <Text wrap="truncate-end">
-                  {'  '}
-                  {(used[t.name] ?? 0) > 0 ? <Text color="green">{String(used[t.name]).padStart(3)}×</Text> : <Text dimColor>{'   ·'}</Text>} {shortName(t.name)} <Text dimColor>{t.short}</Text>
-                </Text>
-              ))}
-            </Box>
-          ))}
+          </Box>,
+        )}
+        <Box>
+          <Button key="rescan" hotkey="r" variant="primary" label="Rescan" onPress={() => void loadTools($).then(() => scan($))} />
         </Box>
-        <Button key="rescan" hotkey="r" label="Rescan" onPress={() => void loadTools($).then(() => scan($))} />
       </Box>
     )
   })

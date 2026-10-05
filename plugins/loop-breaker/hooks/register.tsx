@@ -1,5 +1,10 @@
 import type { EngineInterface, Register } from 'claude-code'
 
+// ── claude-mods kit v1 (docs/design.md): identical in every mod ──
+const TONE = { accent: 'claude', ok: 'success', warn: 'warning', bad: 'error', dim: 'inactive' } as const
+const GLYPH = { on: '●', off: '○', warn: '▲', ok: '✓', fail: '✗' } as const
+// ── end kit ──
+
 /**
  * Spots Claude going in circles (the same command failing again and again, or one
  * file edited over and over in a single turn) and tells both of you.
@@ -15,7 +20,7 @@ const norm = (command: string) => command.replace(/\s+/g, ' ').trim().slice(0, 3
 async function nudge($: EngineInterface, id: string, toast: string, note: string, agentId?: string) {
   if (nudged.has(id)) return
   nudged.add(id)
-  $.ui.toast(`↻ ${toast}`, { timeoutMs: 9000 })
+  $.ui.toast(`${GLYPH.warn} ${toast}`, { timeoutMs: 9000 })
   await $.session
     .append({ message: { type: 'user', content: [{ type: 'text', text: `<loop-breaker>${note}</loop-breaker>` }] }, agentId })
     .catch(error => $.ui.log(`loop-breaker: could not add note: ${String(error)}`, { to: 'debug' }))

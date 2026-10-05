@@ -1,13 +1,58 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { NotifyEntry, NotifyKind } from '../types'
+
+// ── claude-mods kit v1 (docs/design.md): identical in every mod ──
+const TONE = { accent: 'claude', ok: 'success', warn: 'warning', bad: 'error', dim: 'inactive' } as const
+const GLYPH = { on: '●', off: '○', warn: '▲', ok: '✓', fail: '✗' } as const
+type Kit = Pick<ElementTable, 'Box' | 'Text'>
+
+/** Pane header: state glyph, mod name, one-line live status. */
+function header({ Box, Text }: Kit, glyph: string, tone: string, name: string, status: string) {
+  return (
+    <Box gap={1}>
+      <Text color={tone}>{glyph}</Text>
+      <Text bold>{name}</Text>
+      <Text dimColor wrap="truncate-end">{status}</Text>
+    </Box>
+  )
+}
+
+/** A section: a dim label (with optional small controls beside it), then its rows. */
+function section({ Box, Text }: Kit, label: string, rows: RenderChildren, aside?: RenderChildren) {
+  return (
+    <Box flexDirection="column">
+      <Box gap={1}>
+        <Text dimColor>{label}</Text>
+        {aside}
+      </Box>
+      {rows}
+    </Box>
+  )
+}
+
+/** A number right-aligned in a fixed-width cell. */
+function num({ Box, Text }: Kit, value: string, width: number, color?: string) {
+  return (
+    <Box width={width} flexShrink={0} justifyContent="flex-end">
+      <Text color={color}>{value}</Text>
+    </Box>
+  )
+}
+
+/** Empty state: what will show up here, and how to get it. */
+function empty({ Text }: Kit, text: string) {
+  return <Text dimColor>{text}</Text>
+}
+// ── end kit ──
 
 const PANE = 'notify'
 const entries = atom({ plugin: 'notify', key: 'entries' } as const, [])
 const isMuted = atom({ plugin: 'notify', key: 'isMuted' } as const, false)
 
-const ICON: Record<NotifyKind, string> = { turn: '✔', agent: '◆', task: '▶', approval: '⏸', question: '?', error: '✘' }
+const ICON: Record<NotifyKind, string> = { turn: GLYPH.ok, agent: GLYPH.ok, task: GLYPH.ok, approval: GLYPH.warn, question: GLYPH.warn, error: GLYPH.fail }
+const TONE_OF: Record<NotifyKind, string> = { turn: TONE.ok, agent: TONE.ok, task: TONE.ok, approval: TONE.warn, question: TONE.warn, error: TONE.bad }
 
 const firstLine = (text: string, max = 90) => {
   const line = text.split('\n').map(l => l.trim()).find(l => l.length > 0) ?? ''
@@ -165,22 +210,45 @@ export const register: Register = (on, options) => {
     const muted = await read($, isMuted)
     const room = Math.max(3, Math.floor(((e.viewport?.rows ?? 30) - 6) / 2))
 
+    const kit = { Box, Text }
+    const unread = list.filter(n => !n.isRead).length
+    const status = muted ? 'muted · nothing pops up until you unmute' : list.length === 0 ? 'listening' : `${list.length} notification${list.length === 1 ? '' : 's'}${unread > 0 ? ` · ${unread} unread` : ''}`
+
     return (
       <Box flexDirection="column" gap={1}>
+        {header(kit, muted ? GLYPH.off : GLYPH.on, muted ? TONE.dim : TONE.accent, 'notify', status)}
         <Box gap={1}>
           <Button key="mute" hotkey="m" label={muted ? 'Unmute' : 'Mute'} onPress={() => void update($, isMuted, m => !m)} />
           <Button key="clear" hotkey="c" label="Clear" onPress={() => void update($, entries, () => [])} />
           <Button key="test" hotkey="t" label="Test" onPress={() => void push($, 'turn', 'Test notification', 'If you see this, notify works.', true)} />
         </Box>
-        {list.length === 0 && <Text dimColor>Nothing yet. Long turns, finished subagents, background tasks and pending approvals show up here.</Text>}
-        {list.slice(0, room).map(n => (
+        {section(
+          kit,
+          'Inbox',
           <Box flexDirection="column">
-            <Text bold={!n.isRead}>
-              {ICON[n.kind]} {n.title} <Text dimColor>{new Date(n.at).toLocaleTimeString()}</Text>
-            </Text>
-            {n.body !== '' && <Text dimColor wrap="truncate-end">   {n.body}</Text>}
-          </Box>
-        ))}
+            {list.length === 0 && empty(kit, 'Nothing yet. Long turns, finished subagents, background tasks and pending approvals show up here. Press t to send a test.')}
+            {list.slice(0, room).map(n => (
+              <Box flexDirection="column">
+                <Box gap={1}>
+                  <Text color={TONE_OF[n.kind]}>{ICON[n.kind]}</Text>
+                  <Box flexGrow={1} flexShrink={1}>
+                    <Text bold={!n.isRead} wrap="truncate-end">
+                      {n.title}
+                    </Text>
+                  </Box>
+                  <Text dimColor>{new Date(n.at).toLocaleTimeString()}</Text>
+                </Box>
+                {n.body !== '' && (
+                  <Box paddingLeft={2}>
+                    <Text dimColor wrap="truncate-end">
+                      {n.body}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </Box>,
+        )}
       </Box>
     )
   })

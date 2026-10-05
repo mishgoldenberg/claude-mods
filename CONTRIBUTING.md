@@ -8,6 +8,9 @@
 6. Draw from `$.ui.resolve(e)` and check optional elements (`'Input' in els`): mobile has no `Input`/`Select`.
 7. Write from handlers (`onPress`, events), never inside a `ui.render` hook.
 8. Add your mod to `.claude-plugin/marketplace.json` and the README table.
+9. Follow the design spec in **[docs/design.md](docs/design.md)** so your mod looks like the rest: copy the kit block verbatim (theme colors, glyphs, pane header, sections, right-aligned numbers, empty states), `variant="primary"` on the one main action, `r` refresh and `c` clear. `npm test` checks that the kit is identical everywhere and that no raw colors or off-spec glyphs slipped in.
+10. A mod with a pane gets `tests/surfaces.test.tsx` (copy one), which draws the pane on every surface at narrow and wide widths.
+11. Bump your mod's own `version` in `plugin.json` (patch for fixes and polish) so `/mods` offers the update.
 
 Before opening a PR:
 
@@ -19,6 +22,9 @@ npm test
 ```
 ```bash
 claude plugin validate plugins/<your-mod>
+```
+```bash
+claude plugin test plugins/<your-mod>
 ```
 ```bash
 claude plugin validate .

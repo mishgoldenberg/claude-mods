@@ -1,7 +1,51 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { GuardBlock, GuardConfig } from '../types'
+
+// ── claude-mods kit v1 (docs/design.md): identical in every mod ──
+const TONE = { accent: 'claude', ok: 'success', warn: 'warning', bad: 'error', dim: 'inactive' } as const
+const GLYPH = { on: '●', off: '○', warn: '▲', ok: '✓', fail: '✗' } as const
+type Kit = Pick<ElementTable, 'Box' | 'Text'>
+
+/** Pane header: state glyph, mod name, one-line live status. */
+function header({ Box, Text }: Kit, glyph: string, tone: string, name: string, status: string) {
+  return (
+    <Box gap={1}>
+      <Text color={tone}>{glyph}</Text>
+      <Text bold>{name}</Text>
+      <Text dimColor wrap="truncate-end">{status}</Text>
+    </Box>
+  )
+}
+
+/** A section: a dim label (with optional small controls beside it), then its rows. */
+function section({ Box, Text }: Kit, label: string, rows: RenderChildren, aside?: RenderChildren) {
+  return (
+    <Box flexDirection="column">
+      <Box gap={1}>
+        <Text dimColor>{label}</Text>
+        {aside}
+      </Box>
+      {rows}
+    </Box>
+  )
+}
+
+/** A number right-aligned in a fixed-width cell. */
+function num({ Box, Text }: Kit, value: string, width: number, color?: string) {
+  return (
+    <Box width={width} flexShrink={0} justifyContent="flex-end">
+      <Text color={color}>{value}</Text>
+    </Box>
+  )
+}
+
+/** Empty state: what will show up here, and how to get it. */
+function empty({ Text }: Kit, text: string) {
+  return <Text dimColor>{text}</Text>
+}
+// ── end kit ──
 
 const PANE = 'guardrails'
 const STORE_KEY = 'config'
@@ -273,76 +317,101 @@ export const register: Register = on => {
     const cfg = await read($, config)
     const recent = await read($, blocks)
 
+    const kit = { Box, Text }
+    const isActive = (p: (typeof PRESETS)[number]) => p.rules.length === cfg.enabled.length && p.rules.every(r => cfg.enabled.includes(r))
+    const active = PRESETS.find(isActive)
+    const count = cfg.enabled.length + cfg.custom.length
+    const status =
+      count === 0
+        ? 'all rules off'
+        : `${active?.title ?? 'custom set'} · ${count} rule${count === 1 ? '' : 's'} on${recent.length > 0 ? ` · ${recent.length} blocked` : ''}`
+
     return (
       <Box flexDirection="column" gap={1}>
-        <Box flexDirection="column">
-          <Text bold>Presets</Text>
+        {header(kit, count > 0 ? GLYPH.on : GLYPH.off, count > 0 ? TONE.accent : TONE.dim, 'guardrails', status)}
+
+        {section(
+          kit,
+          'Presets',
           <Box gap={1} flexWrap="wrap">
-            {PRESETS.map((p, i) => {
-              const active = p.rules.length === cfg.enabled.length && p.rules.every(r => cfg.enabled.includes(r))
+            {PRESETS.map((p, i) => (
+              <Button key={`preset-${p.id}`} hotkey={String(i + 1)} variant={isActive(p) ? 'primary' : 'secondary'} label={p.title} onPress={() => void save($, c => ({ ...c, enabled: p.rules }))} />
+            ))}
+          </Box>,
+        )}
 
-              return <Button key={`preset-${p.id}`} hotkey={String(i + 1)} variant={active ? 'primary' : 'secondary'} label={p.title} onPress={() => void save($, c => ({ ...c, enabled: p.rules }))} />
-            })}
-          </Box>
-        </Box>
-
-        <Box flexDirection="column">
-          <Text bold>Rules</Text>
-          {RULES.map(rule => {
+        {section(
+          kit,
+          'Rules',
+          RULES.map(rule => {
             const isOn = cfg.enabled.includes(rule.id)
 
             return (
               <Box flexDirection="column">
-                <Button
-                  key={`rule-${rule.id}`}
-                  plain
-                  label={`${isOn ? '[x]' : '[ ]'} ${rule.title}`}
-                  onPress={() => void save($, c => ({ ...c, enabled: isOn ? c.enabled.filter(id => id !== rule.id) : [...c.enabled, rule.id] }))}
-                />
-                <Text dimColor>      {rule.explain}</Text>
+                <Box gap={1}>
+                  <Text color={isOn ? TONE.accent : TONE.dim}>{isOn ? GLYPH.on : GLYPH.off}</Text>
+                  <Button
+                    key={`rule-${rule.id}`}
+                    plain
+                    label={rule.title}
+                    onPress={() => void save($, c => ({ ...c, enabled: isOn ? c.enabled.filter(id => id !== rule.id) : [...c.enabled, rule.id] }))}
+                  />
+                </Box>
+                <Box paddingLeft={2}>
+                  <Text dimColor wrap="truncate-end">
+                    {rule.explain}
+                  </Text>
+                </Box>
               </Box>
             )
-          })}
-        </Box>
+          }),
+        )}
 
-        <Box flexDirection="column">
-          <Text bold>Your own block patterns (regex on shell commands)</Text>
-          {cfg.custom.length === 0 && <Text dimColor>None. Example: terraform\s+destroy  or  kubectl\s+delete</Text>}
-          {cfg.custom.map((c, i) => (
-            <Box gap={1}>
-              <Text>/{c.pattern}/</Text>
-              <Button key={`del-${i}`} plain label="remove" onPress={() => void save($, cur => ({ ...cur, custom: cur.custom.filter((_, j) => j !== i) }))} />
-            </Box>
-          ))}
-          {Input !== undefined && (
-            <Input
-              key="add"
-              placeholder="regex, e.g. docker\s+system\s+prune"
-              submitLabel="Add"
-              onSubmit={(value: string) => {
-                const pattern = value.trim()
-                if (pattern === '') return
-                try {
-                  new RegExp(pattern)
-                } catch {
-                  $.ui.toast('That is not a valid regular expression.')
-                  return
-                }
-                void save($, c => ({ ...c, custom: [...c.custom, { pattern, note: '' }] }))
-              }}
-            />
-          )}
-        </Box>
+        {section(
+          kit,
+          'Your own block patterns (regex on shell commands)',
+          <Box flexDirection="column">
+            {cfg.custom.length === 0 && empty(kit, String.raw`None yet. Example: terraform\s+destroy  or  kubectl\s+delete`)}
+            {cfg.custom.map((c, i) => (
+              <Box gap={1}>
+                <Text color={TONE.accent}>{GLYPH.on}</Text>
+                <Text wrap="truncate-end">/{c.pattern}/</Text>
+                <Button key={`del-${i}`} plain label="remove" onPress={() => void save($, cur => ({ ...cur, custom: cur.custom.filter((_, j) => j !== i) }))} />
+              </Box>
+            ))}
+            {Input !== undefined && (
+              <Input
+                key="add"
+                placeholder="regex, e.g. docker\s+system\s+prune"
+                submitLabel="Add"
+                onSubmit={(value: string) => {
+                  const pattern = value.trim()
+                  if (pattern === '') return
+                  try {
+                    new RegExp(pattern)
+                  } catch {
+                    $.ui.toast('That is not a valid regular expression.')
+                    return
+                  }
+                  void save($, c => ({ ...c, custom: [...c.custom, { pattern, note: '' }] }))
+                }}
+              />
+            )}
+          </Box>,
+        )}
 
-        <Box flexDirection="column">
-          <Text bold>Blocked this session ({recent.length})</Text>
-          {recent.length === 0 && <Text dimColor>Nothing blocked yet.</Text>}
-          {recent.slice(0, 6).map(b => (
-            <Text wrap="truncate-end">
-              <Text color="red">⊘</Text> {b.tool} <Text dimColor>{b.rule}: {b.what}</Text>
-            </Text>
-          ))}
-        </Box>
+        {section(
+          kit,
+          `Blocked this session (${recent.length})`,
+          <Box flexDirection="column">
+            {recent.length === 0 && empty(kit, 'Nothing blocked yet. When a rule stops a command, it shows up here with the rule that caught it.')}
+            {recent.slice(0, 6).map(b => (
+              <Text wrap="truncate-end">
+                <Text color={TONE.bad}>{GLYPH.fail}</Text> {b.tool} <Text dimColor>{b.rule}: {b.what}</Text>
+              </Text>
+            ))}
+          </Box>,
+        )}
         <Text dimColor>Rules are best-effort pattern checks, a seatbelt, not a sandbox. Saved for all your sessions.</Text>
       </Box>
     )

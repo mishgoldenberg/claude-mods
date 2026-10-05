@@ -1,6 +1,6 @@
 {
   "name": "notify",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Notification inbox + native OS notifications when a long turn ends, a subagent or background task finishes, or Claude is stuck waiting for your approval.",
   "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "types": "./types/index.d.ts",

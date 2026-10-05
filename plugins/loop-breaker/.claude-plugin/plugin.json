@@ -1,6 +1,6 @@
 {
   "name": "loop-breaker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Notices when Claude is going in circles (the same command failing again and again, the same code rewritten over and over) and tells Claude to step back and rethink, and tells you too.",
   "author": {
     "name": "Michael Goldenberg",

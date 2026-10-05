@@ -1,7 +1,51 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { CommandDraft, CommandRow } from '../types'
+
+// ── claude-mods kit v1 (docs/design.md): identical in every mod ──
+const TONE = { accent: 'claude', ok: 'success', warn: 'warning', bad: 'error', dim: 'inactive' } as const
+const GLYPH = { on: '●', off: '○', warn: '▲', ok: '✓', fail: '✗' } as const
+type Kit = Pick<ElementTable, 'Box' | 'Text'>
+
+/** Pane header: state glyph, mod name, one-line live status. */
+function header({ Box, Text }: Kit, glyph: string, tone: string, name: string, status: string) {
+  return (
+    <Box gap={1}>
+      <Text color={tone}>{glyph}</Text>
+      <Text bold>{name}</Text>
+      <Text dimColor wrap="truncate-end">{status}</Text>
+    </Box>
+  )
+}
+
+/** A section: a dim label (with optional small controls beside it), then its rows. */
+function section({ Box, Text }: Kit, label: string, rows: RenderChildren, aside?: RenderChildren) {
+  return (
+    <Box flexDirection="column">
+      <Box gap={1}>
+        <Text dimColor>{label}</Text>
+        {aside}
+      </Box>
+      {rows}
+    </Box>
+  )
+}
+
+/** A number right-aligned in a fixed-width cell. */
+function num({ Box, Text }: Kit, value: string, width: number, color?: string) {
+  return (
+    <Box width={width} flexShrink={0} justifyContent="flex-end">
+      <Text color={color}>{value}</Text>
+    </Box>
+  )
+}
+
+/** Empty state: what will show up here, and how to get it. */
+function empty({ Text }: Kit, text: string) {
+  return <Text dimColor>{text}</Text>
+}
+// ── end kit ──
 
 const PANE = 'command-hub'
 const commands = atom({ plugin: 'command-hub', key: 'commands' } as const, [])
@@ -138,6 +182,8 @@ export const register: Register = on => {
     const d = await read($, draft)
     const names = new Set(list.map(c => c.name))
     const use = (name: string) => () => void $.prompt.fill({ text: `/${name} ` })
+    const kit = { Box, Text }
+    const top = header(kit, GLYPH.on, TONE.accent, 'command-hub', list.length === 0 ? 'reading commands…' : `${list.length} commands installed`)
 
     const tabs = (
       <Box gap={1}>
@@ -152,14 +198,23 @@ export const register: Register = on => {
 
       return (
         <Box flexDirection="column" gap={1}>
+          {top}
           {tabs}
-          <Text dimColor>Built-ins worth knowing. Click a name to put it in the prompt box.</Text>
-          {shown.map(x => (
+          {section(
+            kit,
+            'Built-ins worth knowing · click one to put it in the prompt box',
             <Box flexDirection="column">
-              <Button key={`use-${x.name}`} plain label={`/${x.name}`} onPress={use(x.name)} />
-              <Text dimColor>   {x.when}</Text>
-            </Box>
-          ))}
+              {shown.length === 0 && empty(kit, 'Reading the commands this Claude Code has… they appear here in a moment.')}
+              {shown.map(x => (
+                <Box flexDirection="column">
+                  <Button key={`use-${x.name}`} plain label={`/${x.name}`} onPress={use(x.name)} />
+                  <Box paddingLeft={3}>
+                    <Text dimColor>{x.when}</Text>
+                  </Box>
+                </Box>
+              ))}
+            </Box>,
+          )}
         </Box>
       )
     }
@@ -171,30 +226,34 @@ export const register: Register = on => {
 
       return (
         <Box flexDirection="column" gap={1}>
+          {top}
           {tabs}
           {Input !== undefined && <Input key="search" placeholder="search commands…" value={q} onInput={(v: string) => void update($, query, () => v)} onSubmit={(v: string) => void update($, query, () => v)} />}
           <Text dimColor>
             {filtered.length} of {list.length} commands
           </Text>
-          {[...bySource.entries()].map(([source, rows]) => (
-            <Box flexDirection="column">
-              <Text color="magenta">{source}</Text>
-              {rows.map(c => (
+          {filtered.length === 0 && empty(kit, q === '' ? 'Reading the installed commands… they appear here in a moment.' : `No command matches "${q}". Try a shorter word, or clear the search.`)}
+          {[...bySource.entries()].map(([source, rows]) =>
+            section(
+              kit,
+              source,
+              rows.map(c => (
                 <Box gap={1}>
                   <Button key={`all-${c.name}`} plain label={`/${c.name}`} onPress={use(c.name)} />
                   <Text dimColor wrap="truncate-end">
                     {c.description}
                   </Text>
                 </Box>
-              ))}
-            </Box>
-          ))}
+              )),
+            ),
+          )}
         </Box>
       )
     }
 
     return (
       <Box flexDirection="column" gap={1}>
+        {top}
         {tabs}
         <Text dimColor>A slash command is a saved prompt. Use $ARGUMENTS where text typed after the command should go.</Text>
         {Input === undefined ? (
