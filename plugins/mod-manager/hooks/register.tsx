@@ -78,8 +78,6 @@ const PRESETS: { id: string; label: string; mods: string[] }[] = [
 ]
 
 let cliPath = 'claude'
-/** Whether this session already asked the marketplace for news (once, on the first /mods). */
-let checkedMarketplace = false
 
 type Action = 'install' | 'enable' | 'disable' | 'uninstall' | 'update'
 
@@ -319,12 +317,8 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'mods' }, async $ => {
     await $.ui.open({ id: PANE, title: 'Mods' })
-    if (checkedMarketplace) {
-      void refresh($)
-    } else {
-      checkedMarketplace = true
-      void refresh($).then(() => checkForUpdates($))
-    }
+    // Offline: compares with the marketplace copy Claude Code keeps. Fetching news is the Check for updates button.
+    void refresh($)
 
     return { text: 'Mod manager opened.' }
   })
