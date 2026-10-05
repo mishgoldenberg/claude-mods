@@ -235,6 +235,19 @@ Guardrails turns on **Safe defaults** the first time it loads. `/guard-preset of
 
 ---
 
+## 🔒 Is it safe to install?
+
+Mods run inside Claude Code with your permissions and no sandbox, so this is the right question to ask about any mod, including these. What these ones do:
+
+- **No network.** No mod makes a web request, and there is no telemetry. Nothing leaves your machine except the two opt-in model calls below, which go through your own Claude Code session like any prompt.
+- **Processes they start, all of them:** `git diff --numstat` (changes), the `claude plugin` CLI when you click in `/mods` (mod-manager), your OS notification tool (notify), and `gh --version` to see whether the GitHub CLI exists (toolbox).
+- **Files they write:** checkpoints and pre-compaction archives under `.claude/checkpoints/` (context-keeper), and a new slash command file when you use the form (command-hub). Nothing else.
+- **Model calls:** prompt-coach and context-keeper's handoff note, both listed below and both easy to turn off.
+
+Every mod is a few hundred lines of TypeScript in `plugins/<mod>/hooks/register.tsx`. Read the ones you install.
+
+---
+
 ## ⚠️ Honest limits
 
 - **Guardrails is a seatbelt, not a sandbox.** Rules are pattern checks on the commands and paths the agent passes to tools. A script that deletes files, or an obfuscated command, gets through. Quoted prose (commit messages, text written to files) is ignored so that *mentioning* `rm -rf` doesn't block you, except when the text is handed to a shell (`bash -c`, `| sh`, `powershell -Command`), which is checked. For hard guarantees use Claude Code's permission rules and sandboxing; use guardrails to catch the honest mistakes.
