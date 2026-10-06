@@ -309,7 +309,7 @@ export const register: Register = (on, options) => {
     // One hello on the very first session after install; never again.
     if ((await $.store.get('welcomed')) !== true) {
       await $.store.set('welcomed', true)
-      $.ui.toast('claude-mods ready: /mods to pick your set', { timeoutMs: 10000 })
+      $.ui.toast('claude-mods ready: /mods to pick your set. Useful? A star on GitHub helps others find it.', { timeoutMs: 10000 })
     }
 
     return next(e)

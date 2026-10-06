@@ -7,13 +7,17 @@ export type GuardConfig = {
   known?: string[]
 }
 
-export type GuardBlock = { at: number; rule: string; tool: string; what: string }
+export type GuardBlock = { at: number; rule: string; tool: string; what: string; project?: string }
 
 declare module 'claude-code' {
   interface PluginState {
     guardrails: {
       config: GuardConfig
       blocks: GuardBlock[]
+      /** files the agent wrote this session (normalized path -> content), checked before they run */
+      scripts: Record<string, string>
+      /** blocks from the last 30 days, mirrored to the plugin store */
+      log: GuardBlock[]
     }
   }
 }
