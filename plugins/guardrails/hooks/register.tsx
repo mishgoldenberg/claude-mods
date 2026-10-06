@@ -147,8 +147,8 @@ export const RULES: Rule[] = [
   {
     id: 'no-history-rewrite',
     title: 'Block destructive git',
-    explain: 'git reset --hard, git clean -f, git checkout -- ., git restore ., git branch -D, git stash drop/clear, git fetch --prune, git remote prune',
-    test: c => shellHit(c, /\bgit\s+(reset\s+--hard|clean\s+-[a-zA-Z]*f[a-zA-Z]*|checkout\s+--\s+\.|restore\s+\.|branch\s+-D|stash\s+(drop|clear)|fetch\b[^;&|]*\s(--prune|-p)|remote\s+prune)\b.*/),
+    explain: 'git reset --hard, git clean -f, git checkout -- ., git restore ., git branch -D, git stash drop/clear, git fetch/pull --prune, git remote prune',
+    test: c => shellHit(c, /\bgit\s+(reset\s+--hard|clean\s+-[a-zA-Z]*f[a-zA-Z]*|checkout\s+--\s+\.|restore\s+\.|branch\s+-D|stash\s+(drop|clear)|(fetch|pull)\b[^;&|]*\s(--prune|-p)|remote\s+prune)\b.*/),
   },
   {
     id: 'protect-secrets',

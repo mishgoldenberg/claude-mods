@@ -15,7 +15,7 @@ const cases = [
   ['no-force-push', bash('git push --force-with-lease'), false], ['no-force-push', bash('git push origin main'), false],
   ['no-history-rewrite', bash('git reset --hard HEAD~1'), true], ['no-history-rewrite', bash('git clean -fd'), true], ['no-history-rewrite', bash('git reset HEAD file'), false],
   ['no-history-rewrite', bash('git fetch --all --prune'), true], ['no-history-rewrite', bash('git fetch -p origin'), true], ['no-history-rewrite', bash('git remote prune origin'), true],
-  ['no-history-rewrite', bash('git fetch --all'), false], ['no-history-rewrite', bash('git fetch origin main'), false],
+  ['no-history-rewrite', bash('git fetch --all'), false], ['no-history-rewrite', bash('git fetch origin main'), false], ['no-history-rewrite', bash('git pull --prune'), true], ['no-history-rewrite', bash('git pull origin main'), false],
   ['protect-secrets', file('Read', 'C:/Users/me/proj/.env'), true], ['protect-secrets', file('Read', '.env.local'), true], ['protect-secrets', file('Read', 'src/env.ts'), false],
   ['protect-secrets', bash('cat .env'), true], ['protect-secrets', file('Read', '/home/u/.ssh/id_rsa'), true],
   ['no-sudo', bash('sudo apt update'), true], ['no-sudo', bash('echo pseudo'), false],
