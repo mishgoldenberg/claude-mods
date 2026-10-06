@@ -53,6 +53,8 @@ const config = atom({ plugin: 'guardrails', key: 'config' } as const, { enabled:
 const blocks = atom({ plugin: 'guardrails', key: 'blocks' } as const, [])
 
 const scripts = atom({ plugin: 'guardrails', key: 'scripts' } as const, {})
+/** the 30-day block log: loaded from the store at session start, saved back on every block */
+const weekLog = atom({ plugin: 'guardrails', key: 'log' } as const, [])
 const LOG_KEY = 'log'
 const DAY = 86_400_000
 
@@ -326,6 +328,16 @@ export function upgrade(cfg: GuardConfig): GuardConfig {
   return { ...cfg, enabled: preset ? [...preset.rules] : cfg.enabled, known: RULES.map(r => r.id) }
 }
 
+async function logBlock($: EngineInterface, block: GuardBlock) {
+  const log = await update($, weekLog, list => [block, ...list].filter(b => block.at - b.at < 30 * DAY).slice(0, 500))
+  await $.store.set(LOG_KEY, log)
+}
+
+async function clearLog($: EngineInterface) {
+  await update($, weekLog, () => [])
+  await $.store.set(LOG_KEY, [])
+}
+
 async function save($: EngineInterface,change: (c: GuardConfig) => GuardConfig) {
   const next = await update($, config, change)
   await $.store.set(STORE_KEY, next)
@@ -340,6 +352,8 @@ export const register: Register = on => {
     await $.command.register({ name: 'guard-log', description: 'What guardrails blocked in the last 7 days', argumentHint: '[json]' })
     const stored = (await $.store.get(STORE_KEY)) as GuardConfig | undefined
     await save($, () => (stored === undefined ? { enabled: PRESETS[0]?.rules ?? [], custom: [], known: RULES.map(r => r.id) } : upgrade(stored)))
+    const savedLog = ((await $.store.get(LOG_KEY)) as GuardBlock[] | undefined) ?? []
+    await update($, weekLog, () => savedLog)
 
     return next(e)
   })
@@ -359,7 +373,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'guard-log' }, async ($, e) => {
-    const log = ((await $.store.get(LOG_KEY)) as GuardBlock[] | undefined) ?? []
+    const log = await read($, weekLog)
     const now = await $.clock.now()
     if (e.args.trim() === 'json') return { text: JSON.stringify(log.filter(b => now - b.at < 7 * DAY), null, 2) }
     const s = summarize(log, now)
@@ -439,8 +453,7 @@ export const register: Register = on => {
 
     const block: GuardBlock = { at: await $.clock.now(), rule: broken.rule, tool, what: broken.what.slice(0, 200), project: call.root.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? '' }
     await update($, blocks, list => [block, ...list].slice(0, 50))
-    const log = ((await $.store.get(LOG_KEY)) as GuardBlock[] | undefined) ?? []
-    await $.store.set(LOG_KEY, [block, ...log].filter(b => block.at - b.at < 30 * DAY).slice(0, 500))
+    await logBlock($, block)
     $.ui.toast(`Blocked ${tool}: ${broken.rule}`)
 
     return {
@@ -454,7 +467,7 @@ export const register: Register = on => {
     const Input = 'Input' in els ? els.Input : undefined
     const cfg = await read($, config)
     const recent = await read($, blocks)
-    const week = summarize(((await $.store.get(LOG_KEY)) as GuardBlock[] | undefined) ?? [], await $.clock.now())
+    const week = summarize(await read($, weekLog), await $.clock.now())
 
     const kit = { Box, Text }
     const isActive = (p: (typeof PRESETS)[number]) => p.rules.length === cfg.enabled.length && p.rules.every(r => cfg.enabled.includes(r))
@@ -564,7 +577,7 @@ export const register: Register = on => {
               </Box>
             ))}
           </Box>,
-          week.total > 0 ? <Button key="clear-log" plain label="clear" onPress={() => void $.store.set(LOG_KEY, [])} /> : undefined,
+          week.total > 0 ? <Button key="clear-log" plain label="clear" onPress={() => void clearLog($)} /> : undefined,
         )}
         <Text dimColor>Rules are best-effort pattern checks, a seatbelt, not a sandbox. Scripts the agent writes are checked before they run, and the agent can't edit these settings. Everything stays on this machine.</Text>
       </Box>

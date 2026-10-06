@@ -16,6 +16,8 @@ declare module 'claude-code' {
       blocks: GuardBlock[]
       /** files the agent wrote this session (normalized path -> content), checked before they run */
       scripts: Record<string, string>
+      /** blocks from the last 30 days, mirrored to the plugin store */
+      log: GuardBlock[]
     }
   }
 }
