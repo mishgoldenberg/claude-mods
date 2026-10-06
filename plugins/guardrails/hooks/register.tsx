@@ -52,7 +52,12 @@ const STORE_KEY = 'config'
 const config = atom({ plugin: 'guardrails', key: 'config' } as const, { enabled: [], custom: [] } as GuardConfig)
 const blocks = atom({ plugin: 'guardrails', key: 'blocks' } as const, [])
 
-type Call = { tool: string; input: Record<string, unknown>; root: string; cwd: string }
+const scripts = atom({ plugin: 'guardrails', key: 'scripts' } as const, {})
+const LOG_KEY = 'log'
+const DAY = 86_400_000
+
+/** `raw`: the command is a script's own code, so quoted strings are not prose */
+type Call = { tool: string; input: Record<string, unknown>; root: string; cwd: string; raw?: boolean }
 
 type Rule = {
   id: string
@@ -87,7 +92,7 @@ export function shellText(command: string) {
 }
 
 const shellHit = (c: Call, re: RegExp) => {
-  const m = re.exec(shellText(cmd(c)))
+  const m = re.exec(c.raw ? cmd(c) : shellText(cmd(c)))
 
   return m ? m[0].trim() : undefined
 }
@@ -215,6 +220,88 @@ export const RULES: Rule[] = [
   },
 ]
 
+// ── always on: the agent may not rewrite guardrails' own settings ──
+// They live in the plugin store, a JSON file under the Claude Code config dir (~/.claude).
+const OWN_CONFIG = /[\\/]\.claude[\\/](?:[^\s"'`;&|<>]*[\\/])?[^\s"'`;&|<>\\/]*guardrails[^\s"'`;&|<>]*/i
+/** the same settings, spelled the way a shell reaches the home folder */
+const HOME = String.raw`(~|\$HOME|\$env:USERPROFILE|%USERPROFILE%|[a-zA-Z]:[\\/]Users[\\/][^\\/\s"']+|/home/[^/\s"']+|/Users/[^/\s"']+|/root)[\\/]\.claude[\\/][^\s"';&|<>]*guardrails`
+const HOME_CONFIG = new RegExp(HOME, 'i')
+const SHELL_WRITE = /\bsed\b[^;&|]*\s-i\b|\btee\b|\b(cp|mv|rm|del|Copy-Item|Move-Item|Remove-Item|Set-Content|Add-Content|Out-File)\b/i
+const REDIRECT_TO_OWN = new RegExp(String.raw`(^|[^\d&])>>?\s*["']?` + HOME, 'i')
+export const SELF_RULE = 'Protect guardrails settings'
+
+/** The call would write to guardrails' own settings: returns what it touched. A repo's own .claude folder doesn't count. */
+export function protectSelf(c: Call): string | undefined {
+  const p = pathOf(c)
+  if (p !== undefined && WRITE_TOOLS.has(c.tool) && OWN_CONFIG.test(`/${p.replace(/\\/g, '/')}`) && outside(c, p)) return p
+  for (const part of cmd(c).split(/&&|\|\||[;\n]/)) {
+    if (REDIRECT_TO_OWN.test(part) || (HOME_CONFIG.test(part) && SHELL_WRITE.test(part))) return part.trim()
+  }
+
+  return undefined
+}
+
+// ── scripts the agent wrote this session are checked before they run ──
+const INTERPRETER = /^(bash|sh|zsh|dash|source|\.|python3?|py|node|bun|deno|ruby|perl|pwsh|powershell(\.exe)?)$/i
+const SCRIPT_MAX = 200_000
+
+/** Files a shell command executes: `bash x.sh`, `python tools/x.py`, `./run`, `node a.mjs` (normalized paths). */
+export function scriptRuns(command: string, cwd: string): string[] {
+  const out: string[] = []
+  for (const seg of command.split(/&&|\|\||[;|\n]/)) {
+    const words = seg.trim().split(/\s+/).map(w => w.replace(/^["']|["']$/g, ''))
+    let i = 0
+    while (i < words.length && /^\w+=/.test(words[i] ?? '')) i++
+    const first = words[i]
+    if (first === undefined || first === '') continue
+    if (INTERPRETER.test(first)) {
+      let j = i + 1
+      while (j < words.length && (/^-/.test(words[j] ?? '') || words[j] === 'run')) j++
+      const target = words[j]
+      if (target !== undefined && target !== '' && !/^-/.test(target)) out.push(normalize(target, cwd))
+    } else if (/[\\/]/.test(first)) out.push(normalize(first, cwd))
+  }
+
+  return out
+}
+
+/** A script's code checked against the enabled rules, as if each line were a shell command. */
+export function scanScript(code: string, c: Pick<Call, 'root' | 'cwd'>, enabled: string[], custom: GuardConfig['custom'] = []) {
+  const call: Call = { tool: 'Bash', input: { command: code.replace(/\r?\n/g, ' ; ') }, root: c.root, cwd: c.cwd, raw: true }
+  for (const rule of RULES) {
+    if (!enabled.includes(rule.id)) continue
+    const what = rule.test(call)
+    if (what !== undefined) return { rule: rule.title, what }
+  }
+  for (const p of custom) {
+    try {
+      const m = new RegExp(p.pattern, 'i').exec(cmd(call))
+      if (m) return { rule: p.note || `custom /${p.pattern}/`, what: m[0] }
+    } catch {
+      // invalid regex: ignored
+    }
+  }
+
+  return undefined
+}
+
+/** The file's content after an Edit, when we know what it was before. */
+export function applyEdit(before: string, input: Record<string, unknown>) {
+  const from = input.old_string, to = input.new_string
+  if (typeof from !== 'string' || typeof to !== 'string' || from === '') return before
+
+  return input.replace_all === true ? before.split(from).join(to) : before.replace(from, () => to)
+}
+
+/** Block counts for the last `days` days: total, per rule, per project, newest first. */
+export function summarize(log: GuardBlock[], now: number, days = 7) {
+  const recent = log.filter(b => now - b.at < days * DAY)
+  const tally = (key: (b: GuardBlock) => string) =>
+    [...recent.reduce((m, b) => m.set(key(b), (m.get(key(b)) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1])
+
+  return { total: recent.length, byRule: tally(b => b.rule), byProject: tally(b => b.project ?? '?'), latest: recent.slice(0, 5) }
+}
+
 const PRESETS: { id: string; title: string; rules: string[] }[] = [
   { id: 'safe', title: 'Safe defaults', rules: ['no-rm-rf', 'no-mass-delete', 'no-force-push', 'no-history-rewrite', 'protect-secrets', 'no-sudo'] },
   { id: 'locked', title: 'Locked to project', rules: ['no-rm-rf', 'no-mass-delete', 'no-force-push', 'no-history-rewrite', 'protect-secrets', 'no-sudo', 'jail-all'] },
@@ -250,6 +337,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'guard', description: 'Open guardrails: toggle safety rules and presets' })
     await $.command.register({ name: 'guard-preset', description: 'Apply a guardrail preset', argumentHint: 'safe | locked | review | off' })
+    await $.command.register({ name: 'guard-log', description: 'What guardrails blocked in the last 7 days', argumentHint: '[json]' })
     const stored = (await $.store.get(STORE_KEY)) as GuardConfig | undefined
     await save($, () => (stored === undefined ? { enabled: PRESETS[0]?.rules ?? [], custom: [], known: RULES.map(r => r.id) } : upgrade(stored)))
 
@@ -270,6 +358,25 @@ export const register: Register = on => {
     return { text: `Guardrails: ${preset.title} (${preset.rules.length} rules).` }
   })
 
+  on('command.run', { command: 'guard-log' }, async ($, e) => {
+    const log = ((await $.store.get(LOG_KEY)) as GuardBlock[] | undefined) ?? []
+    const now = await $.clock.now()
+    if (e.args.trim() === 'json') return { text: JSON.stringify(log.filter(b => now - b.at < 7 * DAY), null, 2) }
+    const s = summarize(log, now)
+    if (s.total === 0) return { text: 'Guardrails blocked nothing in the last 7 days.' }
+
+    return {
+      text: [
+        `Guardrails blocked ${s.total} call${s.total === 1 ? '' : 's'} in the last 7 days.`,
+        `By rule: ${s.byRule.map(([r, n]) => `${r} (${n})`).join(', ')}`,
+        `By project: ${s.byProject.map(([p, n]) => `${p} (${n})`).join(', ')}`,
+        'Latest:',
+        ...s.latest.map(b => `  ${new Date(b.at).toISOString().slice(0, 16).replace('T', ' ')}  ${b.project ?? ''}  ${b.rule}: ${b.what}`),
+        'Stored only on this machine. /guard-log json for the raw list; clear it in /guard.',
+      ].join('\n'),
+    }
+  })
+
   on('tool.call', async ($, e, next) => {
     const { tool, tool_use_id: _id, agentId: _agent, ...input } = e as unknown as { tool: string; tool_use_id: string; agentId?: string } & Record<string, unknown>
     const cfg = await read($, config)
@@ -278,7 +385,10 @@ export const register: Register = on => {
     const call: Call = { tool, input, root: await $.session.root(), cwd: await $.session.cwd() }
     let broken: { rule: string; what: string } | undefined
 
-    for (const rule of RULES) {
+    const own = protectSelf(call)
+    if (own !== undefined) broken = { rule: SELF_RULE, what: own }
+
+    for (const rule of broken === undefined ? RULES : []) {
       if (!cfg.enabled.includes(rule.id)) continue
       const what = rule.test(call)
       if (what !== undefined) {
@@ -299,10 +409,38 @@ export const register: Register = on => {
         }
       }
     }
-    if (broken === undefined) return next(e)
+    if (broken === undefined && SHELLS.has(tool)) {
+      const known = await read($, scripts)
+      for (const file of scriptRuns(cmd(call), call.cwd)) {
+        const code = known[file]
+        const hit = code === undefined ? undefined : scanScript(code, call, cfg.enabled, cfg.custom)
+        if (hit !== undefined) {
+          broken = { rule: hit.rule, what: `${hit.what} (inside ${file.split('/').pop()}, written this session)` }
+          break
+        }
+      }
+    }
+    if (broken === undefined) {
+      // remember what the agent writes, so running it later can be checked
+      const p = pathOf(call)
+      if (p !== undefined && (tool === 'Write' || tool === 'Edit')) {
+        const file = normalize(p, call.cwd)
+        await update($, scripts, known => {
+          const code = tool === 'Write' ? (typeof input.content === 'string' ? input.content : undefined) : known[file] === undefined ? undefined : applyEdit(known[file], input)
+          if (code === undefined || code.length > SCRIPT_MAX) return known
+          const rest = Object.entries(known).filter(([k]) => k !== file).slice(-29)
 
-    const block: GuardBlock = { at: await $.clock.now(), rule: broken.rule, tool, what: broken.what }
+          return Object.fromEntries([...rest, [file, code]])
+        })
+      }
+
+      return next(e)
+    }
+
+    const block: GuardBlock = { at: await $.clock.now(), rule: broken.rule, tool, what: broken.what.slice(0, 200), project: call.root.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? '' }
     await update($, blocks, list => [block, ...list].slice(0, 50))
+    const log = ((await $.store.get(LOG_KEY)) as GuardBlock[] | undefined) ?? []
+    await $.store.set(LOG_KEY, [block, ...log].filter(b => block.at - b.at < 30 * DAY).slice(0, 500))
     $.ui.toast(`Blocked ${tool}: ${broken.rule}`)
 
     return {
@@ -316,6 +454,7 @@ export const register: Register = on => {
     const Input = 'Input' in els ? els.Input : undefined
     const cfg = await read($, config)
     const recent = await read($, blocks)
+    const week = summarize(((await $.store.get(LOG_KEY)) as GuardBlock[] | undefined) ?? [], await $.clock.now())
 
     const kit = { Box, Text }
     const isActive = (p: (typeof PRESETS)[number]) => p.rules.length === cfg.enabled.length && p.rules.every(r => cfg.enabled.includes(r))
@@ -412,7 +551,22 @@ export const register: Register = on => {
             ))}
           </Box>,
         )}
-        <Text dimColor>Rules are best-effort pattern checks, a seatbelt, not a sandbox. Saved for all your sessions.</Text>
+
+        {section(
+          kit,
+          `Last 7 days (${week.total})`,
+          <Box flexDirection="column">
+            {week.total === 0 && empty(kit, 'Nothing blocked this week. Blocks from every session and project add up here; /guard-log prints a summary.')}
+            {week.byRule.slice(0, 5).map(([rule, n]) => (
+              <Box gap={1}>
+                {num(kit, String(n), 4, TONE.bad)}
+                <Text wrap="truncate-end">{rule}</Text>
+              </Box>
+            ))}
+          </Box>,
+          week.total > 0 ? <Button key="clear-log" plain label="clear" onPress={() => void $.store.set(LOG_KEY, [])} /> : undefined,
+        )}
+        <Text dimColor>Rules are best-effort pattern checks, a seatbelt, not a sandbox. Scripts the agent writes are checked before they run, and the agent can't edit these settings. Everything stays on this machine.</Text>
       </Box>
     )
   })

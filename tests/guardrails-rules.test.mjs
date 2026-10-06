@@ -66,6 +66,58 @@ const checks = [
 ]
 for (const [name, ok] of checks) if (!ok()) { fail++; console.log('FAIL upgrade:', name) }
 
-const total = cases.length + checks.length
+// always on: the agent may not rewrite guardrails' own settings (#10)
+const store = 'C:/Users/me/.claude/plugins/data/guardrails/store.json'
+const selfCases = [
+  [file('Write', store), true], [file('Edit', store.replace(/\//g, '\\')), true], [file('Read', store), false],
+  [file('Edit', 'C:/Users/me/proj/plugins/guardrails/hooks/register.tsx'), false],
+  [bash("sed -i 's/no-rm-rf//' ~/.claude/plugins/data/guardrails/store.json"), true],
+  [bash('echo {} > ~/.claude/plugins/data/guardrails/store.json'), true],
+  [bash('cp empty.json ~/.claude/plugins/data/guardrails/store.json'), true],
+  [bash('cat ~/.claude/plugins/data/guardrails/store.json 2>&1'), false], [bash('npm test > out.txt'), false],
+  [file('Edit', 'C:/Users/me/proj/.claude/worktrees/x/plugins/guardrails/hooks/register.tsx'), false],
+  [bash('cp hooks.tsx .claude/worktrees/x/plugins/guardrails/hooks/'), false],
+  [bash('rm $HOME/.claude/plugins/data/guardrails/store.json'), true],
+  [bash('Set-Content C:\\Users\\me\\.claude\\plugins\\data\\guardrails\\store.json "{}"'), true],
+]
+for (const [call, expect] of selfCases) {
+  if ((mod.protectSelf(call) !== undefined) !== expect) { fail++; console.log('FAIL protectSelf', JSON.stringify(call.input), 'expected', expect) }
+}
+
+// scripts the agent wrote are checked before they run (#10)
+const p = f => `c:/users/me/proj/${f}`
+const runCases = [
+  ['bash cleanup.sh', [p('cleanup.sh')]], ['./run.sh && echo ok', [p('run.sh')]], ['python -u tools/x.py', [p('tools/x.py')]],
+  ['FOO=1 node scripts/a.mjs', [p('scripts/a.mjs')]], ['cat cleanup.sh', []], ['npm test', []],
+]
+for (const [command, expect] of runCases) {
+  const got = mod.scriptRuns(command, root)
+  if (JSON.stringify(got) !== JSON.stringify(expect)) { fail++; console.log('FAIL scriptRuns', command, JSON.stringify(got)) }
+}
+const ctx = { root, cwd: root }
+const scanCases = [
+  ['#!/bin/bash\nset -e\nrm -rf build\necho done', ['no-rm-rf'], true],
+  ['import os\nos.system("rm -rf /tmp/x")', ['no-rm-rf'], true],
+  ['kubectl delete ns staging', ['no-mass-delete'], true],
+  ['echo hello\nls -la', ['no-rm-rf', 'no-mass-delete'], false],
+  ['rm -rf build', [], false],
+]
+for (const [code, enabled, expect] of scanCases) {
+  if ((mod.scanScript(code, ctx, enabled) !== undefined) !== expect) { fail++; console.log('FAIL scanScript', JSON.stringify(code), 'expected', expect) }
+}
+const extra = [
+  ['custom pattern applies inside scripts', () => mod.scanScript('docker system prune -af', ctx, [], [{ pattern: 'docker\\s+system\\s+prune', note: '' }]) !== undefined],
+  ['applyEdit replaces once', () => mod.applyEdit('a a', { old_string: 'a', new_string: 'b' }) === 'b a'],
+  ['applyEdit replace_all', () => mod.applyEdit('a a', { old_string: 'a', new_string: 'b', replace_all: true }) === 'b b'],
+  ['applyEdit keeps $ literally', () => mod.applyEdit('x', { old_string: 'x', new_string: '$&$1' }) === '$&$1'],
+  ['summarize counts the last 7 days only', () => {
+    const now = 100 * 86_400_000
+    const s = mod.summarize([{ at: now - 1, rule: 'A', tool: 'Bash', what: '', project: 'p' }, { at: now - 2, rule: 'A', tool: 'Bash', what: '', project: 'q' }, { at: now - 9 * 86_400_000, rule: 'B', tool: 'Bash', what: '' }], now)
+    return s.total === 2 && s.byRule[0][0] === 'A' && s.byRule[0][1] === 2 && s.byProject.length === 2
+  }],
+]
+for (const [name, ok] of extra) if (!ok()) { fail++; console.log('FAIL', name) }
+
+const total = cases.length + checks.length + selfCases.length + runCases.length + scanCases.length + extra.length
 console.log(`${total - fail}/${total} passed`)
 if (fail > 0) process.exit(1)

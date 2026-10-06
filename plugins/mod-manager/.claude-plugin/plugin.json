@@ -1,6 +1,6 @@
 {
   "name": "mod-manager",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Pick which claude-mods you want: install, turn on or off, update, or remove each mod from one panel (/mods), with presets. No need to install everything.",
   "author": { "name": "Michael Goldenberg", "url": "https://github.com/mishgoldenberg" },
   "types": "./types/index.d.ts",

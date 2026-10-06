@@ -12,6 +12,8 @@
 
 <img src="docs/demo-guardrails.gif" alt="guardrails blocking an agent's oc delete all --all before it runs" width="900">
 
+<sub>If a mod saves you from one bad approve, a ⭐ on this repo helps other people find it.</sub>
+
 </div>
 
 ---
@@ -36,7 +38,7 @@ They are deliberately boring about tokens. Nine of the eleven never call a model
 | 📈 **usage-meter** | 5-hour and 7-day plan-limit bars with reset countdown, **burn rate and "full in ~2.3h"**, session cost, cache hit ratio (and why it's low), tokens-per-turn sparkline (drawn as charts in the desktop app) |
 | 🔔 **notify** | Notification inbox plus **native OS notifications** (Windows, macOS, Linux) when a long turn ends, a subagent or background task finishes, Claude asks you something, or **an approval has been waiting 15s** |
 | 👀 **activity** | What Claude is doing *this second*: thinking, running `$ npm test` for 0m42s, **waiting for YOUR approval**, which subagents run, and its todo plan with progress |
-| 🛡️ **guardrails** | Clickable safety rules with presets (Safe defaults, Locked to project, Read-only review): block `rm -rf`, mass `kubectl`/`oc` deletes, `terraform destroy`, force-push, destructive git, `.env` and key files, sudo, installs, network; keep Claude inside the project; add your own patterns |
+| 🛡️ **guardrails** | Clickable safety rules with presets (Safe defaults, Locked to project, Read-only review): block `rm -rf`, mass `kubectl`/`oc` deletes, `terraform destroy`, force-push, destructive git, `.env` and key files, sudo, installs, network; keep Claude inside the project; add your own patterns. Checks scripts the agent wrote before they run, and keeps a weekly log of what it blocked |
 | ✍️ **prompt-coach** | Before a *vague* prompt is sent, a small fast model suggests a sharper one. You pick **Send improved / Send mine / Edit**. Never rewrites silently, never touches "yes" or "continue" |
 | 🧰 **toolbox** | Every tool Claude can use (built-in and MCP, grouped by server) in plain language, how often each was used, and **suggestions for the project you're in** |
 | ⌨️ **command-hub** | The built-in commands you're probably missing, each with *when to use it*; a searchable list of everything installed; a form to create your own slash command; tips when your prompt matches one ("undo that" → `/rewind`) |
@@ -171,6 +173,7 @@ claude --plugin-dir claude-mods/plugins/activity --plugin-dir claude-mods/plugin
 | `/activity` | activity | Open the live activity panel |
 | `/guard` | guardrails | Open the rules panel |
 | `/guard-preset <safe\|locked\|review\|off>` | guardrails | Apply a preset |
+| `/guard-log [json]` | guardrails | What guardrails blocked in the last 7 days |
 | `/coach [on\|off]` | prompt-coach | Turn the prompt coach on or off |
 | `/tools` | toolbox | Open the tools panel and project suggestions |
 | `/cmds` | command-hub | Open the command hub |
@@ -222,7 +225,7 @@ Options appear in `/config` once a mod is installed, or go in `~/.claude/setting
 | `no-rm-rf` | `rm -rf`, `rm -fr`, `Remove-Item -Recurse -Force`, `rmdir /s` | Safe · Locked |
 | `no-mass-delete` | `kubectl`/`oc delete --all` or `-A`, `delete namespace`/`project`, `helm uninstall`, `terraform destroy` | Safe · Locked · Review |
 | `no-force-push` | `git push --force` / `-f` (`--force-with-lease` allowed) | Safe · Locked |
-| `no-history-rewrite` | `git reset --hard`, `git clean -f`, `git checkout -- .`, `branch -D`, `stash drop` | Safe · Locked |
+| `no-history-rewrite` | `git reset --hard`, `git clean -f`, `git checkout -- .`, `branch -D`, `stash drop`, `fetch`/`pull --prune`, `remote prune` | Safe · Locked |
 | `protect-secrets` | reading or writing `.env*`, `*.pem`, `*.key`, `id_rsa`, credentials files | Safe · Locked · Review |
 | `no-sudo` | `sudo`, `su -`, `runas` | Safe · Locked · Review |
 | `no-installs` | `npm i`, `pip install`, `cargo add`, `brew/apt/winget install` … | Review |
@@ -233,6 +236,12 @@ Options appear in `/config` once a mod is installed, or go in `~/.claude/setting
 
 Guardrails turns on **Safe defaults** the first time it loads. `/guard-preset off` turns everything off.
 
+Whatever the preset, while any rule is on:
+
+- **Scripts are checked before they run.** A file the agent creates with `Write` in this session (and edits after that) is remembered, and when a shell command runs it (`bash cleanup.sh`, `python tools/x.py`, `./run`, `node a.mjs`), its code is checked against your enabled rules and patterns first. `os.system("rm -rf …")` inside a Python file counts.
+- **The agent can't edit guardrails' own settings.** `Write`/`Edit` on them, and the obvious shell writes (`sed -i`, `>`, `tee`, `cp`, `mv`, `rm`), are denied with the same "ask the user" message.
+- **Blocks are logged.** Every block is kept for 30 days on this machine. The panel shows the last 7 days by rule, `/guard-log` prints a summary (`/guard-log json` for the raw list), and **clear** wipes it. Commands are cut to 200 characters.
+
 ---
 
 ## 🔒 Is it safe to install?
@@ -241,7 +250,7 @@ Mods run inside Claude Code with your permissions and no sandbox, so this is the
 
 - **No network.** No mod makes a web request, and there is no telemetry. Nothing leaves your machine except the two opt-in model calls below, which go through your own Claude Code session like any prompt.
 - **Processes they start, all of them:** `git diff --numstat` (changes), the `claude plugin` CLI when you open `/mods` or click in it (mod-manager; only Install, Update and Check for updates go online, through Claude Code's own plugin installer), your OS notification tool (notify), and `gh --version` to see whether the GitHub CLI exists (toolbox).
-- **Files they write:** checkpoints and pre-compaction archives under `.claude/checkpoints/` (context-keeper), and a new slash command file when you use the form (command-hub). Nothing else.
+- **Files they write:** checkpoints and pre-compaction archives under `.claude/checkpoints/` (context-keeper), and a new slash command file when you use the form (command-hub). Settings, and guardrails' 30-day block log, live in Claude Code's own plugin store under `~/.claude`. Nothing else.
 - **Model calls:** prompt-coach and context-keeper's handoff note, both listed below and both easy to turn off.
 
 Every mod is a few hundred lines of TypeScript in `plugins/<mod>/hooks/register.tsx`. Read the ones you install.
@@ -250,7 +259,7 @@ Every mod is a few hundred lines of TypeScript in `plugins/<mod>/hooks/register.
 
 ## ⚠️ Honest limits
 
-- **Guardrails is a seatbelt, not a sandbox.** Rules are pattern checks on the commands and paths the agent passes to tools. A script that deletes files, or an obfuscated command, gets through. Quoted prose (commit messages, text written to files) is ignored so that *mentioning* `rm -rf` doesn't block you, except when the text is handed to a shell (`bash -c`, `| sh`, `powershell -Command`), which is checked. For hard guarantees use Claude Code's permission rules and sandboxing; use guardrails to catch the honest mistakes.
+- **Guardrails is a seatbelt, not a sandbox.** Rules are pattern checks on the commands and paths the agent passes to tools. Scripts the agent wrote this session are checked before they run, but a script that arrives another way (downloaded, generated by a shell command, already in the repo) or an obfuscated command gets through, and so can a shell trick that rewrites guardrails' settings. Quoted prose (commit messages, text written to files) is ignored so that *mentioning* `rm -rf` doesn't block you, except when the text is handed to a shell (`bash -c`, `| sh`, `powershell -Command`), which is checked. For hard guarantees use Claude Code's permission rules and sandboxing; use guardrails to catch the honest mistakes.
 - **prompt-coach costs a little.** A reviewed prompt waits about a second for a small model, and uses a few hundred tokens. When you send the improved version, the chat still shows what you typed; a dim "prompt-coach sent the improved version" line below it shows what was actually sent. Short replies are never reviewed. `/coach off` turns it off.
 - **context-keeper's handoff note costs a little.** It asks the model for a summary over the already-cached conversation, so it is mostly cache reads. The pre-compaction archive costs nothing.
 - **Function hooks are early access.** A Claude Code update can break a mod. CI validates every mod against the engine's own validator, and issues are welcome.
