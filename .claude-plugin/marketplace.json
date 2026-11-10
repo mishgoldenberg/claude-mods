@@ -17,6 +17,7 @@
     { "name": "toolbox", "source": "./plugins/toolbox", "description": "All tools Claude can use in plain language, usage counts, and suggestions tailored to your project.", "category": "productivity" },
     { "name": "command-hub", "source": "./plugins/command-hub", "description": "Discover, search and create slash commands, with plain-language explanations and contextual tips.", "category": "productivity" },
     { "name": "changes", "source": "./plugins/changes", "description": "Files Claude changed this session with +/- counts and one-click why/summary/self-review.", "category": "productivity" },
-    { "name": "loop-breaker", "source": "./plugins/loop-breaker", "description": "Detects Claude going in circles (same failing command, same file patched repeatedly) and nudges it to rethink.", "category": "productivity" }
+    { "name": "loop-breaker", "source": "./plugins/loop-breaker", "description": "Detects Claude going in circles (same failing command, same file patched repeatedly) and nudges it to rethink.", "category": "productivity" },
+    { "name": "fable-crew", "source": "./plugins/fable-crew", "description": "Your lead model plans and reviews; cheaper subagents search (haiku), build (sonnet) and run tests (haiku). Built for Fable 5.2 as the lead.", "category": "productivity" }
   ]
 }
