@@ -44,6 +44,7 @@ They are deliberately boring about tokens. Nine of the eleven never call a model
 | ⌨️ **command-hub** | The built-in commands you're probably missing, each with *when to use it*; a searchable list of everything installed; a form to create your own slash command; tips when your prompt matches one ("undo that" → `/rewind`) |
 | 📝 **changes** | Every file Claude created or edited this session with `+/-` counts from git, plus one-click *why?*, *summarize all* and *self-review* |
 | 🔁 **loop-breaker** | Notices Claude going in circles (the same command failing 3×, the same code rewritten 3× in a turn), tells you, and tells Claude to stop and rethink |
+| 🧑‍✈️ **fable-crew** | No panel, just three subagents and a skill: your lead model (built for Fable 5.2) plans and reviews, while `scout` (haiku) searches, `builder` (sonnet) implements and `checker` (haiku) runs the tests. `/fable-crew:crew <task>` |
 
 ---
 

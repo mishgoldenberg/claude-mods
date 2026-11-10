@@ -1,0 +1,9 @@
+{
+  "name": "fable-crew",
+  "version": "0.1.0",
+  "description": "Your lead model plans and reviews; three cheaper subagents do the searching, typing and test runs. Built for Fable 5.2 as the lead: /fable-crew:crew <task>.",
+  "author": {
+    "name": "Michael Goldenberg",
+    "url": "https://github.com/mishgoldenberg"
+  }
+}
