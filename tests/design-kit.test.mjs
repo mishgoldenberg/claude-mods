@@ -1,5 +1,5 @@
 // Checks the design spec (docs/design.md) holds in every mod: one identical kit, theme colors only.
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
@@ -20,7 +20,9 @@ const check = (ok, what) => {
 }
 
 for (const mod of readdirSync(join(root, 'plugins'))) {
-  const src = readFileSync(join(root, 'plugins', mod, 'hooks/register.tsx'), 'utf8')
+  const file = join(root, 'plugins', mod, 'hooks/register.tsx')
+  if (!existsSync(file)) continue // a plugin with no hooks module (agents and skills only) has no kit to check
+  const src = readFileSync(file, 'utf8')
   const start = src.indexOf('// ── claude-mods kit')
   const end = src.indexOf('// ── end kit ──')
   const draws = src.includes("on('ui.render'")
